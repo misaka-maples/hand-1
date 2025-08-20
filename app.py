@@ -1,8 +1,11 @@
 from flask import Flask, request, render_template,jsonify,Response
 from backend.servo_actuator import ServoActuator  
+from backend.touch_sensor import SensorCommunication
+import time
 from backend.camera import get_frames  # 假设摄像头处理逻辑在这个模块中
 # 初始化串口控制
 actuator = ServoActuator("/dev/ttyUSB0", 921600)
+touch_sensor = SensorCommunication("/dev/ttyACM0", 460800)
 
 app = Flask(__name__)
 
@@ -46,7 +49,30 @@ def status():
     })
 
 
+@app.route("/force_data")
+def force_data():
+    sensors = []
+    
+    # force = touch_sensor.get_all_force()
+    for i in range(1, 7):  # 1~6 共6个传感器
+        force = touch_sensor.get_force(i)
+        if force is not None:
+            sensor = {
+                "fx": force[0] if force is not None else None,
+                "fy": force[1] if force is not None else None,
+                "fz": force[2] if force is not None else None,
+                "error_code": touch_sensor.error_code.get(i, 0)  # 没有则默认0
+            }
+        else:
+            sensor = {
+                "fx": None,
+                "fy": None,
+                "fz": None,
+                "error_code": touch_sensor.error_code.get(i, -1)  # 用 -1 表示掉线
+            }
+        sensors.append(sensor)
 
+    return jsonify({"sensors": sensors})
 @app.route('/video_feed')
 def video_feed():
     return Response(get_frames(),

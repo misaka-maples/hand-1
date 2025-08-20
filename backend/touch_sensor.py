@@ -26,13 +26,17 @@ class SensorCommunication:
             baudrate: 波特率
             timeout: 串口超时时间
         """
+        logger.setLevel(logging.WARNING)  # 只显示 WARNING 及以上级别
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
         self.ser = None
         self.connected = False
         self.current_port = None
-        
+        self.error_code = {1: None, 2: None, 3: None, 4: None, 5: None, 6: None,7:None}
+        if port is not None:
+            self.connect(port)
+            self.init_box()
     def list_available_ports(self) -> List[Dict[str, str]]:
         """获取所有可用串口信息"""
         ports = []
@@ -103,7 +107,6 @@ class SensorCommunication:
         try:
             # 移除空格并转换为字节
             clean_hex = hex_data.replace(' ', '').upper()
-            print(clean_hex)
             data_bytes = bytes.fromhex(clean_hex)
             self.ser.write(data_bytes)
             logger.debug(f"已发送16进制数据: {hex_data}")
@@ -170,9 +173,7 @@ class SensorCommunication:
             logger.error("未连接到串口，无法选择端口")
             return False
             
-        if port_id not in [1, 2]:
-            logger.error(f"无效的端口ID: {port_id}，支持1或2")
-            return False
+
             
         # 如果已经选择了该端口，则无需重复选择
         if self.current_port == port_id:
@@ -191,6 +192,35 @@ class SensorCommunication:
                 #CN2
                 "command": "choose_port2",
                 "body": "0E 00 70 B1 0A 01 00 03",
+                "sleep": 1
+            },
+            3: {
+                #CN1
+                "command": "choose_port3",
+                "body": "0E 00 70 B1 0A 01 00 06",
+                "sleep": 1
+            },
+            4: {
+                #CN2
+                "command": "choose_port4",
+                "body": "0E 00 70 B1 0A 01 00 0A",
+                "sleep": 1
+            },
+            5: {
+                #CN1
+                "command": "choose_port5",
+                "body": "0E 00 70 B1 0A 01 00 0D",
+                "sleep": 1
+            },
+            6: {
+                #CN2
+                "command": "choose_port6",
+                "body": "0E 00 70 B1 0A 01 00 10",
+                "sleep": 1
+            },
+            7:{
+                "command": "choose_port7",
+                "body": "0E 00 70 B1 0A 01 00 12",
                 "sleep": 1
             }
         }
@@ -214,7 +244,7 @@ class SensorCommunication:
             return False
             
         # 等待命令执行完成
-        time.sleep(sleep_time)
+        # time.sleep(sleep_time)
         
         # 读取响应（可选）
         response = self.read_serial_response()
@@ -283,7 +313,7 @@ class SensorCommunication:
                 "body": "0E 00 70 C0 06 05 00 7B F0 03",    #合力
                 "sleep": 0.05,
                 "parse": "hex",
-                "description": "获取CN2数据"
+                "description": "获取合力数据"
             }
         }
         
@@ -319,7 +349,7 @@ class SensorCommunication:
             return None
             
         # 等待响应
-        time.sleep(sleep_time)
+        # time.sleep(sleep_time)
         
         # 读取响应
         response = self.read_serial_response()
@@ -360,7 +390,7 @@ class SensorCommunication:
                             return "success"
                     else:
                         logger.error(f"命令执行错误，错误码: {error:02X}")
-                        return None
+                        return {"error": error}
                 else:
                     logger.error("响应数据格式错误，头或尾不匹配")
                     return None
@@ -420,6 +450,10 @@ class SensorCommunication:
 
         # 获取原始数据
         data = self.get_ser_response(command, request_length)
+        if isinstance(data, dict) and "error" in data:
+            self.error_code[port_id] = data["error"]
+        else:
+            self.error_code[port_id] = None
         if not data:
             logger.error(f"从端口{port_id}获取原始数据失败")
             return None
@@ -487,7 +521,35 @@ class SensorCommunication:
         except Exception as e:
             logger.error(f"数据转换异常: {e}")
             return None
-
+    def get_force(self, index, axis=None):
+        print(f"获取CN{index}合力数据")
+        data = self.get_port_data(index, 3, 'get_force')
+        if data:
+            axis_types = ["signed", "signed", "unsigned"]
+            parsed_force = self.convert_hex_to_sensor_data(data, axis_types)
+            if parsed_force:
+                print(f"CN{index}合力解析数据: {parsed_force}")
+            else:
+                logger.warning(f"CN1合力数据解析失败，原始数据: {data}")
+            if axis is None:
+                return data
+            else:
+                if axis == "fx":
+                    return parsed_force[0]
+                elif axis == "fy":
+                    return parsed_force[1]
+                elif axis == "fz":
+                    return parsed_force[2]
+                else:
+                    logger.warning(f"未知轴: {axis}")
+                    return None
+        else:
+            return None
+    def get_all_force(self):
+        forces = {}
+        for i in range(1, 7):
+            forces[i] = self.get_force(i)
+        return forces
 
 def main():
     logger.info("力传感器数据采集程序启动")
@@ -506,36 +568,20 @@ def main():
 
     try:
         while True:
-            # 读取CN1（假设27字节原始数据，这里只演示读取，不解析具体格式）
-            # logger.info("读取CN1数据（27字节）...")
-            # data1 = sensor.get_port_data(1, 27, 'get_force')
-            # if data1:
-            #     logger.info(f"CN1原始数据（字节列表前10个）: {data1[:10]} ...")
+            start_time = time.time()
+            sensor.get_force(1)
+            # time.sleep(0.5)
+            sensor.get_force(2)
 
-            # time.sleep(1)
-
-            # 读取CN1合力数据（3字节）
-            logger.info("读取CN1合力数据（3字节）...")
-            data2 = sensor.get_port_data(1, 3, 'get_force')
-            if data2:
-                axis_types = ["signed", "signed", "unsigned"]
-                parsed_force = sensor.convert_hex_to_sensor_data(data2, axis_types)
-                if parsed_force:
-                    logger.info(f"CN1合力解析数据: {parsed_force}")
-                else:
-                    logger.warning(f"CN1合力数据解析失败，原始数据: {data2}")
-            logger.info("读取CN2合力数据（3字节）...")
-            data2 = sensor.get_port_data(2, 3, 'get_force')
-            if data2:
-                axis_types = ["signed", "signed", "unsigned"]
-                parsed_force = sensor.convert_hex_to_sensor_data(data2, axis_types)
-                if parsed_force:
-                    logger.info(f"CN2合力解析数据: {parsed_force}")
-                else:
-                    logger.warning(f"CN2合力数据解析失败，原始数据: {data2}")
-
-            time.sleep(1)
-
+            # time.sleep(0.5)
+            end_time = time.time()
+            # print(f"读取CN2合力数据耗时: {end_time - start_time:.2f}秒")
+            # time.sleep(0.5)
+            sensor.get_force(3)
+            sensor.get_force(4)
+            sensor.get_force(5)
+            sensor.get_force(6)
+            
     except KeyboardInterrupt:
         logger.info("用户中断程序")
 
@@ -549,3 +595,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    # sensor = SensorCommunication()
+
+    # # 选择串口
+    # chosen_port = '/dev/ttyACM0'
+    # sensor.connect(chosen_port)
+    # sensor.init_box()
+    # sensor.get_force(2)

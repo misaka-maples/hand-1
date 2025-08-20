@@ -98,6 +98,33 @@
                     </tbody>
                 </table>
             </div>
+            <div class="slider-container mt-3">
+                <h5>三维力传感器</h5>
+                <table class="table table-bordered table-sm text-center">
+                    <thead class="table-light">
+                        <tr>
+                            <th>传感器</th>
+                            <th>Fx (N)</th>
+                            <th>Fy (N)</th>
+                            <th>Fz (N)</th>
+                            <th>错误码</th>
+                        </tr>
+                    </thead>
+                    <tbody id="force-table">
+                        {% for j in range(1, 8) %}
+                        <tr>
+                            <td>传感器 {{j}}</td>
+                            <td id="fx{{j}}">0</td>
+                            <td id="fy{{j}}">0</td>
+                            <td id="fz{{j}}">0</td>
+                            <td id="err{{j}}">0</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+
 
         </div>
     </div>

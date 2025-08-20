@@ -46,3 +46,41 @@ function updateStatusTable() {
 
 // 每 1 秒刷新一次状态
 setInterval(updateStatusTable, 1000);
+
+// 更新三维力传感器表格
+async function updateForceTable() {
+    try {
+        const response = await fetch('/force_data');  // 向后端请求数据
+        if (!response.ok) {
+            throw new Error('网络请求失败');
+        }
+        const data = await response.json();
+
+        if (data.sensors && Array.isArray(data.sensors)) {
+            data.sensors.forEach((sensor, index) => {
+                const j = index + 1;  // 传感器编号从1开始
+                document.getElementById(`fx${j}`).innerText = formatValue(sensor.fx);
+                document.getElementById(`fy${j}`).innerText = formatValue(sensor.fy);
+                document.getElementById(`fz${j}`).innerText = formatValue(sensor.fz);
+                document.getElementById(`err${j}`).innerText = formatError(sensor.error_code);
+
+            });
+        }
+    } catch (error) {
+        console.error("更新力传感器数据失败:", error);
+    }
+}
+
+// 每 500ms 更新一次
+setInterval(updateForceTable, 5000);
+
+function formatValue(val) {
+    return (val === null) ? "None" : val.toFixed ? val.toFixed(2) : val;
+}
+
+function formatError(code) {
+    if (typeof code !== "number") {
+        return "--";
+    }
+    return code.toString(16).toUpperCase().padStart(2, "0");  // 转16进制，大写，补齐2位
+}

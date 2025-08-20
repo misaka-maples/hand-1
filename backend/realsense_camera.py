@@ -22,14 +22,17 @@ class RealSenseCamera:
         self.running = False
 
     def start(self):
-        self.pipeline.start(self.config)
-        # 预热
-        print("Warm up the camera...")
-        for _ in range(30):
-            self.pipeline.wait_for_frames()
-        self.running = True
-        self.thread = threading.Thread(target=self.update_frames, daemon=True)
-        self.thread.start()
+        try:
+            self.pipeline.start(self.config)
+            # 预热
+            print("Warm up the camera...")
+            for _ in range(30):
+                self.pipeline.wait_for_frames()
+            self.running = True
+            self.thread = threading.Thread(target=self.update_frames, daemon=True)
+            self.thread.start()
+        except Exception as e:
+            print(f"Camera start error: {e}")
 
     def update_frames(self):
         while self.running:

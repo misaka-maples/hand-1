@@ -44,8 +44,40 @@ function updateStatusTable() {
         .catch(err => console.error("获取状态失败", err));
 }
 
-// 每 1 秒刷新一次状态
-setInterval(updateStatusTable, 1000);
+// 每 100 毫秒刷新一次状态
+setInterval(updateStatusTable, 100);
+const btn = document.getElementById("graspBtn");
+let isGrasping = false; // 本地状态
+
+btn.addEventListener("click", async () => {
+    const cmd = isGrasping ? "stop_grasp" : "start_grasp";
+
+    const resp = await fetch("/grasp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cmd: cmd })
+    });
+    const data = await resp.json();
+
+    if (data.status === "ok") {
+        isGrasping = !isGrasping;
+        updateButton();
+    } else {
+        alert("命令发送失败: " + data.msg);
+    }
+});
+
+function updateButton() {
+    if (isGrasping) {
+        btn.textContent = "停止抓取";
+        btn.classList.remove("btn-success");
+        btn.classList.add("btn-danger");
+    } else {
+        btn.textContent = "开始抓取";
+        btn.classList.remove("btn-danger");
+        btn.classList.add("btn-success");
+    }
+}
 
 // 更新三维力传感器表格
 async function updateForceTable() {
@@ -72,7 +104,7 @@ async function updateForceTable() {
 }
 
 // 每 500ms 更新一次
-setInterval(updateForceTable, 5000);
+setInterval(updateForceTable, 100);
 
 function formatForce(val) {
     if (val === null || val === -1) {

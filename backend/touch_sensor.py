@@ -3,7 +3,7 @@ import time
 import serial.tools.list_ports
 import logging
 from typing import List, Optional, Dict, Any
-
+import threading
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -26,6 +26,7 @@ class SensorCommunication:
             baudrate: 波特率
             timeout: 串口超时时间
         """
+        print("实例化sensor")
         logger.setLevel(logging.WARNING)  # 只显示 WARNING 及以上级别
         self.port = port
         self.baudrate = baudrate
@@ -34,9 +35,32 @@ class SensorCommunication:
         self.connected = False
         self.current_port = None
         self.error_code = {1: None, 2: None, 3: None, 4: None, 5: None, 6: None,7:None}
+        self.force_data = {}
+        self._running = threading.Event()  # 正确的运行标志
+        self._thread = None
+        self.lock = threading.RLock()
         if port is not None:
             self.connect(port)
             self.init_box()
+    def run(self):
+        while self._running.is_set():
+            time.sleep(0.1)
+            self.get_all_force()
+            
+
+    def start_thread(self):
+        if self._thread is None or not self._thread.is_alive():
+            self._running.set()
+            self._thread = threading.Thread(target=self.run, daemon=True)
+            self._thread.start()
+
+    def stop_thread(self):
+        self._running.clear()  # 通知线程退出
+        # 避免线程在自己里面 join 自己
+        if self._thread is not None and threading.current_thread() != self._thread:
+            self._thread.join()
+        self._thread = None
+
     def list_available_ports(self) -> List[Dict[str, str]]:
         """获取所有可用串口信息"""
         ports = []
@@ -103,19 +127,19 @@ class SensorCommunication:
         if not self.connected:
             logger.error("未连接到串口，无法发送数据")
             return False
-            
-        try:
-            # 移除空格并转换为字节
-            clean_hex = hex_data.replace(' ', '').upper()
-            data_bytes = bytes.fromhex(clean_hex)
-            self.ser.write(data_bytes)
-            logger.debug(f"已发送16进制数据: {hex_data}")
-            return True
-        except Exception as e:
-            logger.error(f"发送数据时出错: {str(e)}")
-            return False
+        with self.lock:
+            try:
+                # 移除空格并转换为字节
+                clean_hex = hex_data.replace(' ', '').upper()
+                data_bytes = bytes.fromhex(clean_hex)
+                self.ser.write(data_bytes)
+                logger.debug(f"已发送16进制数据: {hex_data}")
+                return True
+            except Exception as e:
+                logger.error(f"发送数据时出错: {str(e)}")
+                return False
     
-    def read_serial_response(self, timeout: float = 0.3) -> Optional[bytes]:
+    def read_serial_response(self, timeout: float = 0.03) -> Optional[bytes]:
         """
         从串口读取回复数据
         
@@ -128,18 +152,18 @@ class SensorCommunication:
         if not self.connected:
             logger.error("未连接到串口，无法读取数据")
             return None
-            
-        try:
-            # 等待数据到达
-            time.sleep(timeout)
-            response = self.ser.read_all()
-            if response:
-                logger.debug(f"收到回复数据: {response.hex(' ')}")
-                return response
-            return None
-        except Exception as e:
-            logger.error(f"读取数据时出错: {str(e)}")
-            return None
+        with self.lock:
+            try:
+                # 等待数据到达
+                time.sleep(timeout)
+                response = self.ser.read_all()
+                if response:
+                    logger.debug(f"收到回复数据: {response.hex(' ')}")
+                    return response
+                return None
+            except Exception as e:
+                logger.error(f"读取数据时出错: {str(e)}")
+                return None
     
     @staticmethod
     def calculate_lrc(data: bytes) -> int:
@@ -523,14 +547,13 @@ class SensorCommunication:
             logger.error(f"数据转换异常: {e}")
             return None
     def get_force(self, index, axis=None):
-        print(f"获取CN{index}合力数据")
         data = self.get_port_data(index, 3, 'get_force')
         if data:
             axis_types = ["signed", "signed", "unsigned"]
             parsed_force = self.convert_hex_to_sensor_data(data, axis_types)
             if parsed_force:
                 parsed_force = [0 if f == -1 else f for f in parsed_force]
-                print(f"CN{index}合力解析数据: {parsed_force}")
+                # print(parsed_force)
             else:
                 logger.warning(f"CN1合力数据解析失败，原始数据: {data}")
             if axis is None:
@@ -550,35 +573,44 @@ class SensorCommunication:
     def get_all_force(self):
         forces = {}
         for i in range(1, 7):
+            start_time = time.time()
             forces[i] = self.get_force(i)
+            end_time = time.time()
+            # print(f"读取传感器{i}数据耗时: {end_time - start_time:.2f}秒")
+            self.force_data[i] = forces[i]
+            # time.sleep(0.01)
         return forces
 
 def main():
     logger.info("力传感器数据采集程序启动")
 
-    sensor = SensorCommunication(timeout=0.01)
-
+    sensor = SensorCommunication('/dev/ttyACM0',timeout=0.01)
+    sensor.start_thread()
     # 选择串口
-    chosen_port = '/dev/ttyACM0'
-    if not sensor.connect(chosen_port):
-        logger.error("串口连接失败，程序退出")
-        return
+    # chosen_port = '/dev/ttyACM0'
+    # if not sensor.connect(chosen_port):
+    #     logger.error("串口连接失败，程序退出")
+    #     return
 
-    if not sensor.init_box():
-        logger.error("传感器初始化失败，程序退出")
-        return
-
+    # if not sensor.init_box():
+    #     logger.error("传感器初始化失败，程序退出")
+    #     return
+    # if not sensor.select_port(1):
+    #     logger.error(f"选择端口{1}失败")
+    #     return None
     try:
         while True:
             start = time.time()
-            sensor.get_force(1)
+            # sensor.get_force(1)
+            # sensor.get_all_force()
+            print(sensor.force_data)
             end = time.time()
             print(f"读取CN1合力数据耗时: {end - start:.2f}秒")
-            sensor.get_force(2)
-            sensor.get_force(3)
-            sensor.get_force(4)
-            sensor.get_force(5)
-            sensor.get_force(6)
+            # sensor.get_force(2)
+            # sensor.get_force(3)
+            # sensor.get_force(4)
+            # sensor.get_force(5)
+            # sensor.get_force(6)
             
     except KeyboardInterrupt:
         logger.info("用户中断程序")
@@ -592,11 +624,23 @@ def main():
 
 
 if __name__ == "__main__":
+    sensor = SensorCommunication("/dev/ttyACM0")
+    time.sleep(1)
+    sensor.start_thread()
+    try:
+        while True:
+            # sensor.get_all_force()
+            print(sensor.force_data)
+    except KeyboardInterrupt:
+        sensor.stop_thread()
+
+    finally:
+        sensor.disconnect()
     # main()
 
-    sensor = SensorCommunication("/dev/ttyACM0")
-    data = sensor.get_all_force()
-    print(data)
+    # sensor = SensorCommunication("/dev/ttyACM0")
+    # data = sensor.get_all_force()
+    # print(data)
     # # 选择串口
     # chosen_port = '/dev/ttyACM0'
     # sensor.connect(chosen_port)

@@ -1,7 +1,7 @@
 import serial
 import struct
 import time
-
+import threading
 class ServoActuator:
     FRAME_HEAD_CMD = b'\x55\xAA'
     FRAME_HEAD_ACK = b'\xAA\x55'
@@ -15,10 +15,33 @@ class ServoActuator:
         self.baudrate = baudrate
         self.timeout = timeout
         self.ser = serial.Serial(port, baudrate, timeout=timeout)
-
+        self.positions = {}
+        self.info = {}
+        self._running = threading.Event()  # 正确的运行标志
+        self._thread = None
+        self.lock = threading.RLock()
     def close(self):
         if self.ser and self.ser.is_open:
             self.ser.close()
+    def run(self):
+        while self._running.is_set():
+            time.sleep(0.1)
+            self.get_positions()
+            # print("-")
+        else:
+            time.sleep(0.1)
+    def start_thread(self):
+        if self._thread is None or not self._thread.is_alive():
+            self._running.set()
+            self._thread = threading.Thread(target=self.run, daemon=True)
+            self._thread.start()
+
+    def stop_thread(self):
+        self._running.clear()  # 通知线程退出
+        # 避免线程在自己里面 join 自己
+        if self._thread is not None and threading.current_thread() != self._thread:
+            self._thread.join()
+        self._thread = None
 
     @staticmethod
     def checksum(data: bytes) -> int:
@@ -67,9 +90,10 @@ class ServoActuator:
             raise ValueError("未知指令类型")
 
     def _send_cmd(self, cmd_bytes: bytes):
-        self.ser.write(cmd_bytes)
-        time.sleep(0.01)  # 文档建议 ≥1ms
-        return self.ser.read_all()
+        with self.lock:
+            self.ser.write(cmd_bytes)
+            time.sleep(0.01)  # 文档建议 ≥1ms
+            return self.ser.read_all()
 
     def read_status(self,id_addr=None):
         """读取电缸状态"""
@@ -81,12 +105,14 @@ class ServoActuator:
         """解析读状态应答帧"""
         if not frame.startswith(self.FRAME_HEAD_ACK):
             return None
+        if len(frame) < 20:  # 应答帧至少要够
+            return None
         # 帧结构参考文档：
         # 帧头(2B) + 数据长度(1B) + ID(1B) + 指令类型(1B) + 保留(1B) + 保留(1B)
         # 目标位置(2B, 有符号) + 实际位置(2B, 有符号) + 实际电流(2B, 无符号)
         # 力传感器数值(2B, 有符号) + 力传感器原始值(2B, 无符号)
         # 温度(1B, 有符号) + 故障码(1B, 无符号) + 校验(1B)
-
+        # print(frame)
         # 提取字段
         id_addr = frame[3]
         cmd = f"0x{frame[4]:02X}"  # 十六进制格式
@@ -119,13 +145,15 @@ class ServoActuator:
 
     def set_position(self, position: int, id_addr=None):
         """设置目标位置（步）"""
-        cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x29, [position], id_addr=id_addr)
-        return self._send_cmd(cmd)
+        with self.lock:
+            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x29, [position], id_addr=id_addr)
+            return self._send_cmd(cmd)
 
     def set_speed(self, speed: int, id_addr=None):
         """设置目标速度（步/s）"""
-        cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x28, [speed], id_addr=id_addr)
-        return self._send_cmd(cmd)
+        with self.lock:
+            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x28, [speed], id_addr=id_addr)
+            return self._send_cmd(cmd)
 
     def set_voltage(self, voltage: int, id_addr=None):
         """设置电机输出电压（-1000~1000）"""
@@ -134,46 +162,54 @@ class ServoActuator:
 
     def clear_fault(self, id_addr=None):
         """清除故障"""
-        cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x18, [1], id_addr=id_addr)
-        return self._send_cmd(cmd)
+        with self.lock:
+            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x18, [1], id_addr=id_addr)
+            return self._send_cmd(cmd)
 
     def pause_motion(self, id_addr=None):
         """暂停运动"""
-        cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x1A, [1], id_addr=id_addr)
-        return self._send_cmd(cmd)
-    def get_positions(self):
-        """获取当前各自由度位置"""
-        positions = []
-        for id_addr in range(1,7):
-            cmd = self._build_cmd(self.CMD_RD_STATUS,id_addr=id_addr)
+        with self.lock:
+            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x1A, [1], id_addr=id_addr)
+            return self._send_cmd(cmd)
+    def send_data_to_get_status(self, id_addr, retries=3):
+        for _ in range(retries):
+            cmd = self._build_cmd(self.CMD_RD_STATUS, id_addr=id_addr)
             resp = self._send_cmd(cmd)
-            positions.append(self._parse_status_frame(resp)['current_position'])
+            if resp:
+                return resp
+            time.sleep(0.01)
+        return None
+
+    def get_positions(self):
+        positions = []
+        for id_addr in range(1, 7):
+            
+            resp = self.send_data_to_get_status(id_addr=id_addr)
+            status = self._parse_status_frame(resp)
+            if status:
+                self.positions[id_addr] = status['current_position']
+                self.info[id_addr] = status
+                positions.append(status['current_position'])
+            else:
+                self.positions[id_addr] = None
+                self.info[id_addr] = None
+                positions.append(None)
         return positions
+
 
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
+    actuator.start_thread()
     try:
-        print("当前状态:", actuator.read_status(6))
+        # actuator.clear_fault(6)
 
-        # print("设置定位模式")
-        actuator.set_mode(0,6)
-        time.sleep(0.05)
-        pos = actuator.get_positions()
-        print("当前各自由度位置:", pos)
-        # for i in range
-        # for i in range(1, 5):
-        #     actuator.set_position(0, i)
-#         # actuator.set_position(16384, 6)
-        # actuator.set_speed(100, 6)
-        # actuator.set_position(1800, 6)
-#         # actuator.set_position(1500,2)
-#         # actuator.set_position(2000, 5)  # 设置第1个电缸到100%位置
+        while True:
+            # for i in range(1,5):
+            #     actuator.set_position(10,i)
+            time.sleep(0.01)
+            print(actuator.positions)
 
-#         time.sleep(1)
-#         print("当前状态:", actuator.read_status())
-
-#         print("清除故障")
-        actuator.clear_fault(6)
-#         actuator.pause_motion( )
+    except KeyboardInterrupt:
+        actuator.stop_thread()
     finally:
         actuator.close()

@@ -452,6 +452,7 @@ class SensorCommunication:
         data = self.get_ser_response(command, request_length)
         if isinstance(data, dict) and "error" in data:
             self.error_code[port_id] = data["error"]
+            return None
         else:
             self.error_code[port_id] = None
         if not data:
@@ -459,7 +460,7 @@ class SensorCommunication:
             return None
 
         # 检查长度
-        if len(data) < 12:
+        if len(data) < 12 :
             logger.error(f"端口{port_id}数据长度不足，无法裁切，实际长度: {len(data)}")
             return None
 
@@ -528,11 +529,12 @@ class SensorCommunication:
             axis_types = ["signed", "signed", "unsigned"]
             parsed_force = self.convert_hex_to_sensor_data(data, axis_types)
             if parsed_force:
+                parsed_force = [0 if f == -1 else f for f in parsed_force]
                 print(f"CN{index}合力解析数据: {parsed_force}")
             else:
                 logger.warning(f"CN1合力数据解析失败，原始数据: {data}")
             if axis is None:
-                return data
+                return parsed_force
             else:
                 if axis == "fx":
                     return parsed_force[0]
@@ -554,7 +556,7 @@ class SensorCommunication:
 def main():
     logger.info("力传感器数据采集程序启动")
 
-    sensor = SensorCommunication()
+    sensor = SensorCommunication(timeout=0.01)
 
     # 选择串口
     chosen_port = '/dev/ttyACM0'
@@ -568,15 +570,11 @@ def main():
 
     try:
         while True:
-            start_time = time.time()
+            start = time.time()
             sensor.get_force(1)
-            # time.sleep(0.5)
+            end = time.time()
+            print(f"读取CN1合力数据耗时: {end - start:.2f}秒")
             sensor.get_force(2)
-
-            # time.sleep(0.5)
-            end_time = time.time()
-            # print(f"读取CN2合力数据耗时: {end_time - start_time:.2f}秒")
-            # time.sleep(0.5)
             sensor.get_force(3)
             sensor.get_force(4)
             sensor.get_force(5)
@@ -594,10 +592,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
 
-    # sensor = SensorCommunication()
-
+    sensor = SensorCommunication("/dev/ttyACM0")
+    data = sensor.get_all_force()
+    print(data)
     # # 选择串口
     # chosen_port = '/dev/ttyACM0'
     # sensor.connect(chosen_port)

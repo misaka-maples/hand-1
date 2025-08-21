@@ -141,21 +141,31 @@ class ServoActuator:
         """暂停运动"""
         cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x1A, [1], id_addr=id_addr)
         return self._send_cmd(cmd)
-
+    def get_positions(self):
+        """获取当前各自由度位置"""
+        positions = []
+        for id_addr in range(1,7):
+            cmd = self._build_cmd(self.CMD_RD_STATUS,id_addr=id_addr)
+            resp = self._send_cmd(cmd)
+            positions.append(self._parse_status_frame(resp)['current_position'])
+        return positions
 
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
     try:
         print("当前状态:", actuator.read_status(6))
 
-        print("设置定位模式")
+        # print("设置定位模式")
         actuator.set_mode(0,6)
         time.sleep(0.05)
-
-#         for i in range(1, 7):
-#             actuator.set_position(0, i)
+        pos = actuator.get_positions()
+        print("当前各自由度位置:", pos)
+        # for i in range
+        # for i in range(1, 5):
+        #     actuator.set_position(0, i)
 #         # actuator.set_position(16384, 6)
-        actuator.set_position(1000,6)  
+        # actuator.set_speed(100, 6)
+        # actuator.set_position(1800, 6)
 #         # actuator.set_position(1500,2)
 #         # actuator.set_position(2000, 5)  # 设置第1个电缸到100%位置
 

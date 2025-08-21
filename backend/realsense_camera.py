@@ -55,8 +55,6 @@ class RealSenseCamera:
                     cv2.convertScaleAbs(depth_image, alpha=0.03),
                     cv2.COLORMAP_TURBO
                 )
-
-                
                 self.color_frame = color_image
                 self.depth = depth_colormap
 
@@ -79,3 +77,17 @@ class RealSenseCamera:
         self.running = False
         self.thread.join(timeout=2)
         self.pipeline.stop()
+
+
+if __name__ == "__main__":
+    realsensecamera = RealSenseCamera()
+    realsensecamera.start()
+    try:
+        while True:
+            combined_frame = realsensecamera.get_combined_frame()
+            if combined_frame is not None:
+                cv2.imshow("RealSense", combined_frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+    finally:
+        realsensecamera.stop()

@@ -59,9 +59,9 @@ async function updateForceTable() {
         if (data.sensors && Array.isArray(data.sensors)) {
             data.sensors.forEach((sensor, index) => {
                 const j = index + 1;  // 传感器编号从1开始
-                document.getElementById(`fx${j}`).innerText = formatValue(sensor.fx);
-                document.getElementById(`fy${j}`).innerText = formatValue(sensor.fy);
-                document.getElementById(`fz${j}`).innerText = formatValue(sensor.fz);
+                document.getElementById(`fx${j}`).innerText = formatForce(sensor.fx);
+                document.getElementById(`fy${j}`).innerText = formatForce(sensor.fy);
+                document.getElementById(`fz${j}`).innerText = formatForce(sensor.fz);
                 document.getElementById(`err${j}`).innerText = formatError(sensor.error_code);
 
             });
@@ -74,9 +74,13 @@ async function updateForceTable() {
 // 每 500ms 更新一次
 setInterval(updateForceTable, 5000);
 
-function formatValue(val) {
-    return (val === null) ? "None" : val.toFixed ? val.toFixed(2) : val;
+function formatForce(val) {
+    if (val === null || val === -1) {
+        return 0;  // -1 或 null 显示为0
+    }
+    return val.toFixed ? val.toFixed(2) : val;
 }
+
 
 function formatError(code) {
     if (typeof code !== "number") {

@@ -3,6 +3,7 @@ from backend.servo_actuator import ServoActuator
 from backend.touch_sensor import SensorCommunication
 import time
 from backend.camera import get_frames  # 假设摄像头处理逻辑在这个模块中
+from backend.auto_grasp import SmartGrasper  # 假设自动抓取逻辑在这个模块中
 # 初始化串口控制
 actuator = ServoActuator("/dev/ttyUSB0", 921600)
 touch_sensor = SensorCommunication("/dev/ttyACM0", 460800)
@@ -31,6 +32,9 @@ def command():
     elif cmd == "clear_fault":
         for i in range(1, 7):
             actuator.clear_fault(i)
+    elif cmd == "start_grasp":
+        grasper = SmartGrasper(touch_sensor, actuator)
+        grasper.grasp()
     else:
         return "Unknown command", 400
     return f"Command executed: {cmd}"

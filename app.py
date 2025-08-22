@@ -19,7 +19,7 @@ def set_dof():
     dof = int(request.args.get("dof"))
     value = int(request.args.get("value"))
     actuator.set_mode(0, dof)
-    actuator.set_position(value*20, dof)
+    actuator.set_position(value, dof)
     return f"Set DOF{dof} to {value}"
 
 @app.route("/command", methods=["POST"])

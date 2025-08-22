@@ -66,7 +66,7 @@
                         <span>自由度 {{i}}</span>
                         <span id="val{{i}}">{{0 if i != 6 else 100}}</span>
                     </div>
-                    <input type="range" id="dof{{i}}" min="0" max="100" value="{{0 if i != 6 else 100}}">
+                    <input type="range" id="dof{{i}}" min="0" max="3000" value="{{0 if i != 6 else 100}}">
                 </div>
                 {% endfor %}
             </div>

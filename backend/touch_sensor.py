@@ -631,6 +631,7 @@ if __name__ == "__main__":
         while True:
             # sensor.get_all_force()
             print(sensor.force_data)
+            time.sleep(0.1)
     except KeyboardInterrupt:
         sensor.stop_thread()
 

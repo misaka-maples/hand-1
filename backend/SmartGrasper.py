@@ -26,37 +26,61 @@ class SmartGrasper:
         if self._thread is not None and threading.current_thread() != self._thread:
             self._thread.join()
         self._thread = None
+    def safe_sum(self,val):
+        if isinstance(val, (list, tuple)):
+            return sum(val)
+        elif isinstance(val, (int, float)):
+            return val
+        return 0
+    def check_grasp(self,sensor_values: dict, threshold: int = 225) -> bool:
+        """
+        判断是否抓稳
+        :param sensor_values: {1: [..], 2: [..], ...} 传感器值字典
+        :param threshold: 阈值
+        :return: True 抓稳, False 未抓稳
+        """
+        sensor3_val = sensor_values.get(3)
+        if sensor3_val is None:
+            return False  # 如果3号传感器无效，直接返回
+
+        # 取 sensor3 的和
+        sum3 = self.safe_sum(sensor3_val)
+
+        for sid, val in sensor_values.items():
+            if sid == 3 or val is None:
+                continue
+            if sum3 + self.safe_sum(val) > threshold:
+                return True  # 找到一个满足条件的传感器
+        return False
 
     def grasp(self):
         while self._running.is_set():
-            # all_forces = dict(list(self.sensors.force_data.items())[:4])
             all_forces = self.sensors.force_data
             with self.lock:
                 positions = dict(list(self.actuator.positions.items())[:4])
                 info = dict(list(self.actuator.info.items())[:4])
 
-            # 手指到传感器映射（手指1~4对应实际传感器编号）
+            # 手指到传感器映射（支持多个传感器）
             finger_to_sensor = {
-                1: 1,  # 手指1 -> 传感器1
-                2: None,  # 手指2没有传感器
-                3: 3,  # 手指3 -> 传感器3（实际在第四指上）
-                4: 3,  # 手指4（大拇指） -> 传感器3
+                1: [1, 4],   # 手指1 -> 传感器1 和 4
+                2: [5],       # 手指2没有传感器
+                3: [2,6],      # 手指3 -> 传感器2
+                4: [3],      # 手指4（大拇指） -> 传感器3
             }
 
-            # 保存每根手指的合力
             finger_forces = {}
 
-            for fid in range(1, 5):  # 遍历手指1~4
-                sensor_id = finger_to_sensor.get(fid)
-                if sensor_id is None:
-                    continue  # 跳过没有传感器的手指
+            for fid in range(1, 5):
+                sensor_ids = finger_to_sensor.get(fid, [])
+                if not sensor_ids:
+                    continue  # 没传感器就跳过
 
-                force_vec = all_forces.get(sensor_id)
-                if not force_vec:
-                    finger_forces[fid] = 0.0
-                    continue
-
-                total_force = self.get_force_magnitude(sensor_id)
+                total_force = 0.0
+                for sid in sensor_ids:
+                    force_vec = all_forces.get(sid)
+                    if not force_vec:
+                        continue
+                    total_force += self.get_force_magnitude(sid)
 
                 finger_forces[fid] = total_force
 
@@ -70,8 +94,8 @@ class SmartGrasper:
 
             # 判断抓取是否完成：任意两指合力大于阈值
             sorted_forces = sorted(finger_forces.values(), reverse=True)
-            if len(sorted_forces) >= 2 and sum(sorted_forces[:2]) >= self.min_force * 2:
-                print("已稳定抓取 ✅",finger_forces)
+            if len(sorted_forces) >= 2 and self.check_grasp(finger_forces, self.min_force * 2):
+                print("已稳定抓取 ✅", finger_forces)
                 break
 
             # sleep 可分段以响应停止信号

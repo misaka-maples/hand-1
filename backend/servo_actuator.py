@@ -103,6 +103,9 @@ class ServoActuator:
 
     def _parse_status_frame(self, frame: bytes):
         """解析读状态应答帧"""
+        if frame is None:
+            print("[WARN] received empty frame")
+            return None
         if not frame.startswith(self.FRAME_HEAD_ACK):
             return None
         if len(frame) < 20:  # 应答帧至少要够

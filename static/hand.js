@@ -22,27 +22,37 @@ function sendCommand(cmd) {
         .catch(err => console.error(err));
 }
 
-function updateStatusTable() {
-    fetch('/status')
-        .then(res => res.json())
-        .then(data => {
-            let tableHTML = "";
-            for (let dof = 1; dof <= 6; dof++) {
-                const status = data[`DOF${dof}`];
-                if (!status) continue;
-                tableHTML += `
-                    <tr>
-                        <td>${dof}</td>
-                        <td>${status.temperature_C}</td>
-                        <td>${status.current_position}</td>
-                        <td>${status.error_code}</td>
-                    </tr>
-                `;
-            }
-            document.getElementById("status-table").innerHTML = tableHTML;
-        })
-        .catch(err => console.error("获取状态失败", err));
-}
+    function updateStatusTable() {
+        fetch('/status')
+            .then(res => res.json())
+            .then(data => {
+                let tableHTML = "";
+                for (let dof = 1; dof <= 6; dof++) {
+                    const status = data[`DOF${dof}`];
+                    if (!status) continue;
+
+                    // 表格
+                    tableHTML += `
+                        <tr>
+                            <td>${dof}</td>
+                            <td>${status.temperature_C}</td>
+                            <td>${status.current_position}</td>
+                            <td>${status.error_code}</td>
+                        </tr>
+                    `;
+
+                    // === 新增：更新滑动条和 label ===
+                    const slider = document.getElementById(`dof${dof}`);
+                    const label = document.getElementById(`val${dof}`);
+                    if (slider && label) {
+                        slider.value = status.current_position;   // 设置滑块位置
+                        label.innerText = status.current_position; // 设置右侧数值
+                    }
+                }
+                document.getElementById("status-table").innerHTML = tableHTML;
+            })
+            .catch(err => console.error("获取状态失败", err));
+    }
 
 // 每 100 毫秒刷新一次状态
 setInterval(updateStatusTable, 100);

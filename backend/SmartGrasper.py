@@ -39,17 +39,14 @@ class SmartGrasper:
         :param threshold: 阈值
         :return: True 抓稳, False 未抓稳
         """
-        sensor3_val = sensor_values.get(3)
+        sensor3_val = sensor_values.get(4)
         if sensor3_val is None:
-            return False  # 如果3号传感器无效，直接返回
-
-        # 取 sensor3 的和
-        sum3 = self.safe_sum(sensor3_val)
+            return False  
 
         for sid, val in sensor_values.items():
-            if sid == 3 or val is None:
+            if sid == 4 or val is None:
                 continue
-            if sum3 + self.safe_sum(val) > threshold:
+            if self.safe_sum(sensor3_val) > self.min_force and self.safe_sum(val) > self.min_force:
                 return True  # 找到一个满足条件的传感器
         return False
 
@@ -83,11 +80,16 @@ class SmartGrasper:
                     total_force += self.get_force_magnitude(sid)
 
                 finger_forces[fid] = total_force
+                sorted_finger_forces = sorted(finger_forces.values(), reverse=True)
 
                 # 控制手指运动
-                if total_force < self.min_force:
-                    new_pos = positions[fid] + self.step
-                    self.actuator.set_position(new_pos, fid)
+                if total_force < self.min_force :
+                    # if sum(sorted_finger_forces)<self.min_force-10:
+                    #     new_pos = positions[fid] + self.step+20
+                    #     self.actuator.set_position(new_pos, fid)
+                    # else:
+                        new_pos = positions[fid] + self.step
+                        self.actuator.set_position(new_pos, fid)
                 elif total_force > self.max_force:
                     new_pos = positions[fid] - self.step
                     self.actuator.set_position(new_pos, fid)

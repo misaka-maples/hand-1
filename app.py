@@ -21,7 +21,7 @@ def set_dof():
     actuator.set_mode(0, dof)
     actuator.set_position(value, dof)
     return f"Set DOF{dof} to {value}"
-
+    
 @app.route("/command", methods=["POST"])
 def command():
     cmd = request.args.get("cmd")

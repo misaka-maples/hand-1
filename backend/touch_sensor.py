@@ -26,7 +26,6 @@ class SensorCommunication:
             baudrate: 波特率
             timeout: 串口超时时间
         """
-        print("实例化sensor")
         logger.setLevel(logging.WARNING)  # 只显示 WARNING 及以上级别
         self.port = port
         self.baudrate = baudrate
@@ -44,7 +43,8 @@ class SensorCommunication:
             self.init_box()
     def run(self):
         while self._running.is_set():
-            time.sleep(0.1)
+            
+            time.sleep(0.2)
             self.get_all_force()
             
 
@@ -139,7 +139,7 @@ class SensorCommunication:
                 logger.error(f"发送数据时出错: {str(e)}")
                 return False
     
-    def read_serial_response(self, timeout: float = 0.03) -> Optional[bytes]:
+    def read_serial_response(self, timeout: float = 0.01) -> Optional[bytes]:
         """
         从串口读取回复数据
         
@@ -227,7 +227,7 @@ class SensorCommunication:
             4: {
                 #CN2
                 "command": "choose_port4",
-                "body": "0E 00 70 B1 0A 01 00 0A",
+                "body": "0E 00 70 B1 0A 01 00 09",
                 "sleep": 1
             },
             5: {
@@ -572,7 +572,7 @@ class SensorCommunication:
             return None
     def get_all_force(self):
         forces = {}
-        for i in range(1, 7):
+        for i in range(1, 5):
             start_time = time.time()
             forces[i] = self.get_force(i)
             end_time = time.time()

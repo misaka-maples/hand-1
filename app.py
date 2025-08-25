@@ -21,14 +21,14 @@ def set_dof():
     actuator.set_mode(0, dof)
     actuator.set_position(value, dof)
     return f"Set DOF{dof} to {value}"
-    
+
 @app.route("/command", methods=["POST"])
 def command():
     cmd = request.args.get("cmd")
     if cmd == "reset":
         for i in range(1, 7):
-            actuator.set_position(0, i)
-        actuator.set_position(2000, 6)  # Reset all DOFs to 0
+            actuator.set_position(10, i)
+        actuator.set_position(1988, 6)  
     elif cmd == "clear_fault":
         for i in range(1, 7):
             actuator.clear_fault(i)
@@ -57,7 +57,7 @@ def force_data():
     sensors = []
     
     # force = touch_sensor.get_all_force()
-    for i in range(1, 7):  # 1~6 共6个传感器
+    for i in range(1, 5):  # 1~6 共6个传感器
         force = touch_sensor.force_data[i]
         
         # print(f"force: {force}")

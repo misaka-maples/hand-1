@@ -22,37 +22,37 @@ function sendCommand(cmd) {
         .catch(err => console.error(err));
 }
 
-    function updateStatusTable() {
-        fetch('/status')
-            .then(res => res.json())
-            .then(data => {
-                let tableHTML = "";
-                for (let dof = 1; dof <= 6; dof++) {
-                    const status = data[`DOF${dof}`];
-                    if (!status) continue;
+function updateStatusTable() {
+    fetch('/status')
+        .then(res => res.json())
+        .then(data => {
+            let tableHTML = "";
+            for (let dof = 1; dof <= 6; dof++) {
+                const status = data[`DOF${dof}`];
+                if (!status) continue;
 
-                    // 表格
-                    tableHTML += `
-                        <tr>
-                            <td>${dof}</td>
-                            <td>${status.temperature_C}</td>
-                            <td>${status.current_position}</td>
-                            <td>${status.error_code}</td>
-                        </tr>
-                    `;
+                // 表格
+                tableHTML += `
+                    <tr>
+                        <td>${dof}</td>
+                        <td>${status.temperature_C}</td>
+                        <td>${status.current_position}</td>
+                        <td>${status.error_code}</td>
+                    </tr>
+                `;
 
-                    // === 新增：更新滑动条和 label ===
-                    const slider = document.getElementById(`dof${dof}`);
-                    const label = document.getElementById(`val${dof}`);
-                    if (slider && label) {
-                        slider.value = status.current_position;   // 设置滑块位置
-                        label.innerText = status.current_position; // 设置右侧数值
-                    }
+                // === 新增：更新滑动条和 label ===
+                const slider = document.getElementById(`dof${dof}`);
+                const label = document.getElementById(`val${dof}`);
+                if (slider && label) {
+                    slider.value = status.current_position;   // 设置滑块位置
+                    label.innerText = status.current_position; // 设置右侧数值
                 }
-                document.getElementById("status-table").innerHTML = tableHTML;
-            })
-            .catch(err => console.error("获取状态失败", err));
-    }
+            }
+            document.getElementById("status-table").innerHTML = tableHTML;
+        })
+        .catch(err => console.error("获取状态失败", err));
+}
 
 // 每 100 毫秒刷新一次状态
 setInterval(updateStatusTable, 100);
@@ -89,30 +89,36 @@ function updateButton() {
     }
 }
 
+
 // 更新三维力传感器表格
 async function updateForceTable() {
     try {
         const response = await fetch('/force_data');  // 向后端请求数据
-        if (!response.ok) {
-            throw new Error('网络请求失败');
-        }
+        if (!response.ok) throw new Error('网络请求失败');
         const data = await response.json();
 
         if (data.sensors && Array.isArray(data.sensors)) {
-            data.sensors.forEach((sensor, index) => {
-                const j = index + 1;  // 传感器编号从1开始
-                document.getElementById(`fx${j}`).innerText = formatForce(sensor.fx);
-                document.getElementById(`fy${j}`).innerText = formatForce(sensor.fy);
-                document.getElementById(`fz${j}`).innerText = formatForce(sensor.fz);
-                document.getElementById(`err${j}`).innerText = formatError(sensor.error_code);
+            const tbody = document.getElementById("force-table");
+            tbody.innerHTML = "";  // 清空旧内容
 
+            data.sensors.forEach((sensor, index) => {
+                const j = index + 1;
+                const row = `
+                    <tr>
+                        <td>传感器 ${j}</td>
+                        <td>${formatForce(sensor.fx)}</td>
+                        <td>${formatForce(sensor.fy)}</td>
+                        <td>${formatForce(sensor.fz)}</td>
+                        <td>${formatError(sensor.error_code)}</td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML("beforeend", row);
             });
         }
     } catch (error) {
         console.error("更新力传感器数据失败:", error);
     }
 }
-
 // 每 500ms 更新一次
 setInterval(updateForceTable, 100);
 

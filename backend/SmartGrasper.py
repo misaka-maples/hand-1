@@ -93,7 +93,7 @@ class SmartGrasper:
                 elif total_force > self.max_force:
                     new_pos = positions[fid] - self.step
                     self.actuator.set_position(new_pos, fid)
-
+ 
             # 判断抓取是否完成：任意两指合力大于阈值
             sorted_forces = sorted(finger_forces.values(), reverse=True)
             if len(sorted_forces) >= 2 and self.check_grasp(finger_forces, self.min_force * 2):

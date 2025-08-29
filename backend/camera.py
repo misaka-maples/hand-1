@@ -19,6 +19,7 @@ def get_frames():
                 cv2.COLORMAP_TURBO
             )
             images = np.hstack((color_image, depth_colormap))
+            images = color_image
             ret, buffer = cv2.imencode('.jpg', images)
         else:
             images = camera.get_combined_frame()

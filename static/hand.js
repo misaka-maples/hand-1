@@ -2,6 +2,8 @@
 for (let i = 1; i <= 6; i++) {
     const slider = document.getElementById(`dof${i}`);
     const label = document.getElementById(`val${i}`);
+    if (!slider || !label) continue; // 如果不存在就跳过
+
     slider.addEventListener('input', () => {
         label.innerText = slider.value;
         sendSliderValue(i, slider.value);
@@ -56,71 +58,168 @@ function updateStatusTable() {
 
 // 每 100 毫秒刷新一次状态
 setInterval(updateStatusTable, 100);
+
 const btn = document.getElementById("graspBtn");
 let isGrasping = false; // 本地状态
 
+// 点击按钮触发抓取/停止
 btn.addEventListener("click", async () => {
     const cmd = isGrasping ? "stop_grasp" : "start_grasp";
 
-    const resp = await fetch("/grasp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cmd: cmd })
-    });
-    const data = await resp.json();
+    try {
+        const resp = await fetch("/grasp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cmd: cmd })
+        });
+        const data = await resp.json();
 
-    if (data.status === "ok") {
-        isGrasping = !isGrasping;
-        updateButton();
-    } else {
-        alert("命令发送失败: " + data.msg);
+        if (data.status === "ok") {
+            // 根据后端返回状态同步前端按钮
+            isGrasping = data.is_grasping;
+            updateButton();
+        } else {
+            alert("命令发送失败: " + data.msg);
+        }
+    } catch (err) {
+        console.error("抓取命令发送失败", err);
+        alert("抓取命令发送失败，请检查网络");
     }
 });
 
-function updateButton() {
-    if (isGrasping) {
-        btn.textContent = "停止抓取";
-        btn.classList.remove("btn-success");
-        btn.classList.add("btn-danger");
-    } else {
-        btn.textContent = "开始抓取";
-        btn.classList.remove("btn-danger");
-        btn.classList.add("btn-success");
-    }
-}
+// 封装按钮更新函数
+// function updateButton() {
+//     const statusText = document.getElementById("grasp-status");
 
+//     if (isGrasping) {
+//         btn.textContent = "停止抓取";
+//         btn.classList.remove("btn-success");
+//         btn.classList.add("btn-danger");
 
-// 更新三维力传感器表格
-async function updateForceTable() {
-    try {
-        const response = await fetch('/force_data');  // 向后端请求数据
-        if (!response.ok) throw new Error('网络请求失败');
-        const data = await response.json();
+//         // 更新状态文字
+//         statusText.textContent = "正在抓取...";
+//         statusText.classList.remove("text-secondary");
+//         statusText.classList.add("text-success");
+//     } else {
+//         btn.textContent = "开始抓取";
+//         btn.classList.remove("btn-danger");
+//         btn.classList.add("btn-success");
 
-        if (data.sensors && Array.isArray(data.sensors)) {
-            const tbody = document.getElementById("force-table");
-            tbody.innerHTML = "";  // 清空旧内容
+//         // 更新状态文字
+//         statusText.textContent = "等待状态...";
+//         statusText.classList.remove("text-success");
+//         statusText.classList.add("text-secondary");
+//     }
+// }
 
-            data.sensors.forEach((sensor, index) => {
-                const j = index + 1;
-                const row = `
-                    <tr>
-                        <td>传感器 ${j}</td>
-                        <td>${formatForce(sensor.fx)}</td>
-                        <td>${formatForce(sensor.fy)}</td>
-                        <td>${formatForce(sensor.fz)}</td>
-                        <td>${formatError(sensor.error_code)}</td>
-                    </tr>
-                `;
-                tbody.insertAdjacentHTML("beforeend", row);
-            });
+// 页面加载时初始化按钮状态
+// updateButton();
+document.addEventListener("DOMContentLoaded", () => {
+    const container = document.getElementById("force-image-container");
+    const updateInterval = 500;
+
+    // 色块在图片上的相对位置（百分比）
+    const positions = [
+        { left: 85, top: 5 },  // 传感器1
+        { left: 67, top: 5 },  // 传感器2
+        { left: 50, top: 5 },  // 传感器3
+        { left: 10, top: 75 }, // 传感器4
+    ];
+
+    async function fetchForceData() {
+        try {
+            const response = await fetch('/force_data');
+            if (!response.ok) throw new Error('网络请求失败');
+            const data = await response.json();
+            console.log("力数据:", data);
+            return data.sensors || [];
+        } catch (err) {
+            console.error("力数据获取失败:", err);
+            return [];
         }
-    } catch (error) {
-        console.error("更新力传感器数据失败:", error);
     }
-}
-// 每 500ms 更新一次
-setInterval(updateForceTable, 100);
+
+    // --- 更新色块 ---
+    async function updateForceBlocks() {
+        const sensors = await fetchForceData();
+
+        // 清空旧色块
+        const oldBoxes = container.querySelectorAll(".force-box");
+        oldBoxes.forEach(b => b.remove());
+
+        // 如果没有数据就不画色块
+        if (sensors.length === 0) return;
+
+        sensors.forEach((sensor, index) => {
+            const fx = sensor.fx || 0;
+            const fy = sensor.fy || 0;
+            const fz = sensor.fz || 0;
+
+            const box = document.createElement("div");
+            box.className = "force-box";
+
+            const threshold = 20;  // 阈值，比如 20N
+            if (Math.abs(fx) >= threshold || Math.abs(fy) >= threshold || Math.abs(fz) >= threshold) {
+                box.style.backgroundColor = "rgb(255,0,0)";  // 红色
+            } else {
+                box.style.backgroundColor = "rgb(0,255,0)";  // 绿色
+            }
+
+            const pos = positions[index] || { left: 0, top: 0 };
+            box.style.left = pos.left + "%";
+            box.style.top = pos.top + "%";
+
+            container.appendChild(box);
+        });
+    }
+
+    // --- 更新表格 ---
+    async function updateForceTable() {
+        const sensors = await fetchForceData();
+
+        const tableBody = document.getElementById("force-table");
+        tableBody.innerHTML = "";  // 清空旧数据
+
+        // 没数据也要显示空行
+        if (sensors.length === 0) {
+            for (let i = 0; i < 4; i++) {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>--</td>
+                    <td>无数据</td>
+                `;
+                tableBody.appendChild(row);
+            }
+            return;
+        }
+
+        sensors.forEach((sensor, index) => {
+            const fx = sensor.fx || 0;
+            const fy = sensor.fy || 0;
+            const fz = sensor.fz || 0;
+            const error = sensor.error_code ?? 0;
+
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${fx.toFixed(2)}</td>
+                <td>${fy.toFixed(2)}</td>
+                <td>${fz.toFixed(2)}</td>
+                <td>${error}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    // 每 500ms 更新色块
+    setInterval(updateForceBlocks, updateInterval);
+    // 每 500ms 更新表格
+    setInterval(updateForceTable, updateInterval);
+});
+
 
 function formatForce(val) {
     if (val === null || val === -1) {

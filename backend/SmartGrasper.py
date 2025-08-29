@@ -3,14 +3,18 @@ from backend.servo_actuator import ServoActuator
 import time
 import math
 import threading
+
 class SmartGrasper:
     def __init__(self, sensors, actuator):
         self.sensors :SensorCommunication= sensors
         self.actuator :ServoActuator = actuator
         # 力阈值（不同物体可调节）
-        self.min_force = 50     # 检测到物体的最小力
+        self.min_force = 15     # 检测到物体的最小力
         self.max_force = 200    # 安全力，超过可能损坏物体
-        self.step = 20         # 每次移动的步长
+        self.max_pos = {1: 1200, 2: 1200, 3: 1200, 4: 1000}  # 可以根据实际调整
+        self.min_pos = {1: 0, 2: 0, 3: 0, 4: 0}
+        self.grasp_state = "未抓取"
+        self.step = 1000         # 每次移动的步长
         self._running = threading.Event()  # 正确的运行标志
         self._thread = None
         self.lock = threading.RLock()
@@ -50,19 +54,18 @@ class SmartGrasper:
                 return True  # 找到一个满足条件的传感器
         return False
 
+
     def grasp(self):
         while self._running.is_set():
             all_forces = self.sensors.force_data
             with self.lock:
                 positions = dict(list(self.actuator.positions.items())[:4])
-                info = dict(list(self.actuator.info.items())[:4])
 
-            # 手指到传感器映射（支持多个传感器）
             finger_to_sensor = {
-                1: [1, 4],   # 手指1 -> 传感器1 和 4
-                2: [5],       # 手指2没有传感器
-                3: [2,6],      # 手指3 -> 传感器2
-                4: [3],      # 手指4（大拇指） -> 传感器3
+                1: [1],
+                2: [2],
+                3: [3],
+                4: [4],
             }
 
             finger_forces = {}
@@ -70,42 +73,38 @@ class SmartGrasper:
             for fid in range(1, 5):
                 sensor_ids = finger_to_sensor.get(fid, [])
                 if not sensor_ids:
-                    continue  # 没传感器就跳过
+                    continue
 
                 total_force = 0.0
                 for sid in sensor_ids:
-                    force_vec = all_forces.get(sid)
-                    if not force_vec:
-                        continue
                     total_force += self.get_force_magnitude(sid)
 
                 finger_forces[fid] = total_force
                 sorted_finger_forces = sorted(finger_forces.values(), reverse=True)
+                print(fid, total_force)
+                # 控制手指运动，加入最大/最小位置限制
+                if total_force < self.min_force:
+                    new_pos = positions[fid] + self.step
+                    new_pos = min(new_pos, self.max_pos[fid])  # 限制最大位置
+                    print(fid,new_pos)
+                    self.actuator.set_pos_with_vel(new_pos, 500, fid)
+                    self.grasp_state = "抓取中"
+                # elif total_force > self.max_force:
+                #     new_pos = positions[fid] - self.step
+                #     new_pos = max(new_pos, self.min_pos[fid])  # 限制最小位置
+                #     self.actuator.set_pos_with_vel(new_pos, 800, fid)
 
-                # 控制手指运动
-                if total_force < self.min_force :
-                    # if sum(sorted_finger_forces)<self.min_force-10:
-                    #     new_pos = positions[fid] + self.step+20
-                    #     self.actuator.set_position(new_pos, fid)
-                    # else:
-                        new_pos = positions[fid] + self.step
-                        self.actuator.set_position(new_pos, fid)
-                elif total_force > self.max_force:
-                    new_pos = positions[fid] - self.step
-                    self.actuator.set_position(new_pos, fid)
- 
-            # 判断抓取是否完成：任意两指合力大于阈值
+            # 判断抓取是否完成
             sorted_forces = sorted(finger_forces.values(), reverse=True)
             if len(sorted_forces) >= 2 and self.check_grasp(finger_forces, self.min_force * 2):
-                print("已稳定抓取 ✅", finger_forces)
+                print("已稳定抓取 ✅", finger_forces, self.grasp_state)
+                self.grasp_state = "已抓取"
                 break
 
-            # sleep 可分段以响应停止信号
             for _ in range(5):
                 if not self._running.is_set():
                     break
                 time.sleep(0.1)
-
     def get_force_magnitude(self, finger_id: int) -> float:
         force_vec = self.sensors.force_data.get(finger_id)
 
@@ -123,8 +122,9 @@ class SmartGrasper:
         positions = dict(list(self.actuator.positions.items())[:4])
         for fid, pos in enumerate(positions, start=1):
             self.actuator.set_position(10, fid)  # 全部张开
+        self.grasp_state = "未抓取"
         print("释放完成 ✅")
-
+    
 
 if __name__ == "__main__":
     sensors = SensorCommunication("/dev/ttyACM0")

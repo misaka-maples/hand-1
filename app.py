@@ -1,119 +1,139 @@
-from flask import Flask, request, render_template,jsonify,Response
+from flask import Flask, request, render_template, jsonify, Response
 from backend.servo_actuator import ServoActuator  
 from backend.touch_sensor import SensorCommunication
 import time
-from backend.camera import get_frames  # 假设摄像头处理逻辑在这个模块中
-from backend.SmartGrasper import SmartGrasper  # 假设自动抓取逻辑在这个模块中
-# 初始化串口控制
+from backend.camera import get_frames
+from backend.SmartGrasper import SmartGrasper  
+import logging
+
+# 获取 werkzeug logger
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.WARNING)
+
+# 初始化硬件
 actuator = ServoActuator("/dev/ttyUSB0", 921600)
 touch_sensor = SensorCommunication("/dev/ttyACM0", 460800)
 grasping = SmartGrasper(touch_sensor, actuator)
+
 app = Flask(__name__)
 
-
+# ----------------------
+# 页面路由
+# ----------------------
 @app.route("/")
 def index():
-    return render_template('index.html')
+    """主页面：视频流 + 状态表 + 力传感器 + 控制按钮"""
+    return render_template("index.html")
+
+@app.route("/control")
+def control():
+    """子页面：自由度控制"""
+    return render_template("control.html")
+
+@app.route("/grasp_status")
+def grasp_status():
+    grasp_state = {"status": grasping.grasp_state}  # 也可以是 "抓取中" / "完成"
+    return jsonify(grasp_state)
+
+# ----------------------
+# API 接口
+# ----------------------
 @app.route("/set_dof", methods=["POST"])
 def set_dof():
+    """设置自由度角度"""
     dof = int(request.args.get("dof"))
     value = int(request.args.get("value"))
     actuator.set_mode(0, dof)
-    actuator.set_position(value, dof)
+    actuator.set_pos_with_vel(value, 800, dof)
     return f"Set DOF{dof} to {value}"
 
 @app.route("/command", methods=["POST"])
 def command():
+    """执行控制命令"""
     cmd = request.args.get("cmd")
+    print(cmd)
     if cmd == "reset":
-        for i in range(1, 7):
-            actuator.set_position(10, i)
-        actuator.set_position(1988, 6)  
+        actuator.clear_fault()
+        actuator.reset_grasp()
+        grasping.grasp_state = "等待状态"
     elif cmd == "clear_fault":
-        for i in range(1, 7):
-            actuator.clear_fault(i)
+        actuator.clear_fault()
     else:
         return "Unknown command", 400
     return f"Command executed: {cmd}"
+
 @app.route("/status", methods=["GET"])
 def status():
+    """查询关节状态"""
     status_info = actuator.info
     if not status_info:
-        return 
-    else:
-        # print(f"status_info: {status_info}")
-        return jsonify({
-            "DOF1": status_info[1],
-            "DOF2": status_info[2],
-            "DOF3": status_info[3],
-            "DOF4": status_info[4],
-            "DOF5": status_info[5],
-            "DOF6": status_info[6]
-        })
+        return jsonify({"error": "no data"})
+    return jsonify({
+        "DOF1": status_info[1],
+        "DOF2": status_info[2],
+        "DOF3": status_info[3],
+        "DOF4": status_info[4],
+        "DOF5": status_info[5],
+        "DOF6": status_info[6]
+    })
 
-
-@app.route("/force_data")
+@app.route("/force_data", methods=["GET"])
 def force_data():
+    """获取三维力传感器数据"""
     sensors = []
-    
-    # force = touch_sensor.get_all_force()
-    for i in range(1, 5):  # 1~6 共6个传感器
-        force = touch_sensor.force_data[i]
-        
-        # print(f"force: {force}")
-        if force is not None:
-            sensor = {
-                "fx": force[0] if force is not None else None,
-                "fy": force[1] if force is not None else None,
-                "fz": force[2] if force is not None else None,
-                "error_code":0
-                # "error_code": touch_sensor.error_code.get(i, 0)  # 没有则默认0
-            }
+    for i in range(1, 5):  # 假设有4个传感器
+        if len(touch_sensor.force_data) == 4:
+            force = touch_sensor.force_data[i]
+            if force is not None:
+                sensor = {"fx": force[0], "fy": force[1], "fz": force[2], "error_code": 0}
+            else:
+                sensor = {"fx": None, "fy": None, "fz": None, "error_code": 0}
         else:
-            sensor = {
-                "fx": None,
-                "fy": None,
-                "fz": None,
-                "error_code":0
-                # "error_code": touch_sensor.error_code.get(i, -1)  # 用 -1 表示掉线
-            }
+            sensor = {"fx": None, "fy": None, "fz": None, "error_code": 0}
         sensors.append(sensor)
     return jsonify({"sensors": sensors})
-@app.route('/video_feed')
+
+@app.route("/video_feed")
 def video_feed():
-    return Response(get_frames(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    """视频流接口"""
+    return Response(get_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
 @app.route("/grasp", methods=["POST"])
 def grasp():
+    """自动抓取控制"""
     global is_grasping
     data = request.json
     cmd = data.get("cmd")
-    print(cmd)
     if cmd == "start_grasp":
         is_grasping = True
+        actuator.clear_fault()
         grasping.start_thread()
+        grasping.grasp_state = "抓取中"
         print("开始抓取")
     elif cmd == "stop_grasp":
         is_grasping = False
+        actuator.clear_fault()
         grasping.stop_thread()
+        
         print("停止抓取")
     else:
-        print("---------------------")
         return jsonify({"status": "error", "msg": "未知命令"}), 400
-    print(f"Grasping status: {is_grasping}")
     return jsonify({"status": "ok", "is_grasping": is_grasping})
 
+# ----------------------
+# 主入口
+# ----------------------
 if __name__ == "__main__":
     try:
+        # 启动硬件线程
         touch_sensor.start_thread()
         actuator.start_thread()
-        # while True:
-        #     pass
-        #     print(touch_sensor.force_data,actuator.positions)
         time.sleep(2)  # 等待传感器初始化
+        # 启动Web服务
         app.run(host="0.0.0.0", port=5000, debug=False)
     except KeyboardInterrupt:
+        print("程序终止")
+    finally:
         actuator.stop_thread()
         touch_sensor.stop_thread()
-    finally:
         actuator.close()

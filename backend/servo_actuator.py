@@ -104,7 +104,7 @@ class ServoActuator:
     def _parse_status_frame(self, frame: bytes):
         """解析读状态应答帧"""
         if frame is None:
-            print("[WARN] received empty frame")
+            print("[WARN] received empty position")
             return None
         if not frame.startswith(self.FRAME_HEAD_ACK):
             return None
@@ -145,17 +145,30 @@ class ServoActuator:
         cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x25, [mode], id_addr=id_addr)
         # print(cmd.hex())
         return self._send_cmd(cmd)
+    def send_message(self,cmd,mode,message,id_addr=None):
+        with self.lock:
+            cmd = self._build_cmd(cmd, mode, message, id_addr=id_addr)
+            print(cmd.hex())
+            return self._send_cmd(cmd)
+    def set_pos_with_vel(self,position:int,velocity:int,id_addr=None):
+        """设置目标位置和速度（步）"""
+        with self.lock:
+            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x25, [0X0002,0X0000,0X0000, velocity,position], id_addr=id_addr)
+            # print(cmd.hex())
+            return self._send_cmd(cmd)
 
     def set_position(self, position: int, id_addr=None):
         """设置目标位置（步）"""
         with self.lock:
             cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x29, [position], id_addr=id_addr)
+            print(cmd.hex())
             return self._send_cmd(cmd)
 
-    def set_speed(self, speed: int, id_addr=None):
+    def set_speed(self, speed: int, position: int, id_addr=None):
         """设置目标速度（步/s）"""
         with self.lock:
-            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x28, [speed], id_addr=id_addr)
+            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x23, [speed, position], id_addr=id_addr)
+            print(cmd.hex())
             return self._send_cmd(cmd)
 
     def set_voltage(self, voltage: int, id_addr=None):
@@ -166,8 +179,9 @@ class ServoActuator:
     def clear_fault(self, id_addr=None):
         """清除故障"""
         with self.lock:
-            cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x18, [1], id_addr=id_addr)
-            return self._send_cmd(cmd)
+            for i in range(1, 7):
+                cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x18, [1], id_addr=i)
+                self._send_cmd(cmd)
 
     def pause_motion(self, id_addr=None):
         """暂停运动"""
@@ -198,17 +212,37 @@ class ServoActuator:
                 self.info[id_addr] = None
                 positions.append(None)
         return positions
-
+    def reset_grasp(self):
+        for i in range(1, 5):
+            self.set_pos_with_vel(100,500, i)
+        self.set_pos_with_vel(1998,500, 5)
+        self.set_pos_with_vel(10,500, 6)
 
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
     actuator.start_thread()
     try:
-        # actuator.clear_fault(6)
+        actuator.clear_fault()
+        actuator.set_pos_with_vel(0,500, 1)
+        actuator.set_pos_with_vel(0,500, 2)
+        actuator.set_pos_with_vel(0,500, 3)
+        actuator.set_pos_with_vel(0,500, 4)
 
+        # actuator.set_pos_with_vel(0,500,1)
+        # actuator.reset_grasp()
+        # x = 20
+        # actuator.set_speed(x,1,1)
+        # actuator.set_mode(2,1)
+        # actuator.send_message(0x32,0x25,[0x02],1)#55 aa 05 01 31 2000 0000 57
+        # x = actuator.send_message(0x32,0x25,[0X0002,0X0000,0X0000,0x01F4,0x0000],1)#55 aa 05 01 31 2300 4000 9a
+        # print(x.hex())
+        # print(actuator._parse_status_frame(x))
+        # print(actuator.positions)
+        # actuator.send_message(0x31,0x24,0x40,1)
         while True:
+            # actuator.set_position(1)
             # for i in range(1,5):
-            #     actuator.set_position(10,i)
+            #     actuator.set_position(100,i)
             time.sleep(0.01)
             print(actuator.positions)
 

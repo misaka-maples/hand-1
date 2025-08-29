@@ -89,32 +89,42 @@ btn.addEventListener("click", async () => {
 
 // 封装按钮更新函数
 function updateButton() {
+    const statusText = document.getElementById("grasp-status");
+
     if (isGrasping) {
         btn.textContent = "停止抓取";
         btn.classList.remove("btn-success");
         btn.classList.add("btn-danger");
+
+        // 更新状态文字
+        statusText.textContent = "正在抓取...";
+        statusText.classList.remove("text-secondary");
+        statusText.classList.add("text-success");
     } else {
         btn.textContent = "开始抓取";
         btn.classList.remove("btn-danger");
         btn.classList.add("btn-success");
+
+        // 更新状态文字
+        statusText.textContent = "等待状态...";
+        statusText.classList.remove("text-success");
+        statusText.classList.add("text-secondary");
     }
 }
 
 // 页面加载时初始化按钮状态
 updateButton();
 
-
 document.addEventListener("DOMContentLoaded", () => {
 
     const container = document.getElementById("force-image-container");
-    const image = document.getElementById("force-image");
     const updateInterval = 500;
 
     // 色块在图片上的相对位置（百分比）
     const positions = [
-        { left: 85, top: 5 }, // 传感器1
-        { left: 67, top: 5 }, // 传感器2
-        { left: 50, top: 5 }, // 传感器3
+        { left: 85, top: 5 },  // 传感器1
+        { left: 67, top: 5 },  // 传感器2
+        { left: 50, top: 5 },  // 传感器3
         { left: 10, top: 75 }, // 传感器4
     ];
 
@@ -126,32 +136,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (!data.sensors || data.sensors.length === 0) return;
 
-            // 清空旧色块
+            // --- 更新色块 ---
             const oldBoxes = container.querySelectorAll(".force-box");
             oldBoxes.forEach(b => b.remove());
-
             data.sensors.forEach((sensor, index) => {
                 const fx = sensor.fx || 0;
                 const fy = sensor.fy || 0;
                 const fz = sensor.fz || 0;
-                const magnitude = Math.sqrt(fx * fx + fy * fy + fz * fz);
 
                 const box = document.createElement("div");
                 box.className = "force-box";
 
-                // 颜色映射
-                const maxForce = 100;
-                const ratio = Math.min(magnitude / maxForce, 1);
-                const r = Math.floor(255 * ratio);
-                const g = Math.floor(255 * (1 - ratio));
-                box.style.backgroundColor = `rgb(${r},${g},0)`;
+                const threshold = 20;  // 阈值，比如 50N
 
-                // 设置绝对位置
+                // 判断是否任意一个分量超过阈值
+                if (Math.abs(fx) >= threshold || Math.abs(fy) >= threshold || Math.abs(fz) >= threshold) {
+                    box.style.backgroundColor = "rgb(255,0,0)";  // 红色
+                } else {
+                    box.style.backgroundColor = "rgb(0,255,0)";  // 绿色
+                }
+
                 const pos = positions[index] || { left: 0, top: 0 };
                 box.style.left = pos.left + "%";
                 box.style.top = pos.top + "%";
 
                 container.appendChild(box);
+            });
+
+
+            // --- 更新表格 ---
+            const tableBody = document.getElementById("force-table");
+            tableBody.innerHTML = "";  // 清空旧数据
+
+            data.sensors.forEach((sensor, index) => {
+                const fx = sensor.fx || 0;
+                const fy = sensor.fy || 0;
+                const fz = sensor.fz || 0;
+                const error = sensor.error || 0;
+
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${fx.toFixed(2)}</td>
+                    <td>${fy.toFixed(2)}</td>
+                    <td>${fz.toFixed(2)}</td>
+                    <td>${error}</td>
+                `;
+                tableBody.appendChild(row);
             });
 
         } catch (err) {
@@ -161,6 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     setInterval(updateForceBlocks, updateInterval);
 });
+
 
 
 // 每 500ms 更新一次

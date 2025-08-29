@@ -104,7 +104,7 @@ class ServoActuator:
     def _parse_status_frame(self, frame: bytes):
         """解析读状态应答帧"""
         if frame is None:
-            print("[WARN] received empty frame")
+            print("[WARN] received empty position")
             return None
         if not frame.startswith(self.FRAME_HEAD_ACK):
             return None
@@ -214,16 +214,22 @@ class ServoActuator:
         return positions
     def reset_grasp(self):
         for i in range(1, 5):
-            self.set_pos_with_vel(0,500, i)
-        self.set_pos_with_vel(1700,500, 5)
-        self.set_pos_with_vel(1998,500, 6)
+            self.set_pos_with_vel(100,500, i)
+        self.set_pos_with_vel(1998,500, 5)
+        self.set_pos_with_vel(10,500, 6)
 
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
-    # actuator.start_thread()
+    actuator.start_thread()
     try:
-        actuator.set_pos_with_vel(0,500,1)
-        # actuator.clear_fault(1)
+        actuator.clear_fault()
+        actuator.set_pos_with_vel(0,500, 1)
+        actuator.set_pos_with_vel(0,500, 2)
+        actuator.set_pos_with_vel(0,500, 3)
+        actuator.set_pos_with_vel(0,500, 4)
+
+        # actuator.set_pos_with_vel(0,500,1)
+        # actuator.reset_grasp()
         # x = 20
         # actuator.set_speed(x,1,1)
         # actuator.set_mode(2,1)
@@ -231,14 +237,14 @@ if __name__ == "__main__":
         # x = actuator.send_message(0x32,0x25,[0X0002,0X0000,0X0000,0x01F4,0x0000],1)#55 aa 05 01 31 2300 4000 9a
         # print(x.hex())
         # print(actuator._parse_status_frame(x))
-        
+        # print(actuator.positions)
         # actuator.send_message(0x31,0x24,0x40,1)
-        # while True:
-        #     # actuator.set_position(1)
-        #     # for i in range(1,5):
-        #     #     actuator.set_position(100,i)
-        #     time.sleep(0.01)
-        #     print(actuator.positions)
+        while True:
+            # actuator.set_position(1)
+            # for i in range(1,5):
+            #     actuator.set_position(100,i)
+            time.sleep(0.01)
+            print(actuator.positions)
 
     except KeyboardInterrupt:
         actuator.stop_thread()

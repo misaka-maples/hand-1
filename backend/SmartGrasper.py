@@ -9,11 +9,11 @@ class SmartGrasper:
         self.sensors :SensorCommunication= sensors
         self.actuator :ServoActuator = actuator
         # 力阈值（不同物体可调节）
-        self.min_force = 50     # 检测到物体的最小力
+        self.min_force = 15     # 检测到物体的最小力
         self.max_force = 200    # 安全力，超过可能损坏物体
-        self.max_pos = {1: 1500, 2: 1500, 3: 1500, 4: 1000}  # 可以根据实际调整
+        self.max_pos = {1: 1200, 2: 1200, 3: 1200, 4: 1000}  # 可以根据实际调整
         self.min_pos = {1: 0, 2: 0, 3: 0, 4: 0}
-
+        self.grasp_state = "未抓取"
         self.step = 1000         # 每次移动的步长
         self._running = threading.Event()  # 正确的运行标志
         self._thread = None
@@ -62,10 +62,10 @@ class SmartGrasper:
                 positions = dict(list(self.actuator.positions.items())[:4])
 
             finger_to_sensor = {
-                1: [1, 4],
-                2: [5],
-                3: [2, 6],
-                4: [3],
+                1: [1],
+                2: [2],
+                3: [3],
+                4: [4],
             }
 
             finger_forces = {}
@@ -81,12 +81,12 @@ class SmartGrasper:
 
                 finger_forces[fid] = total_force
                 sorted_finger_forces = sorted(finger_forces.values(), reverse=True)
-
                 # 控制手指运动，加入最大/最小位置限制
                 if total_force < self.min_force:
                     new_pos = positions[fid] + self.step
                     new_pos = min(new_pos, self.max_pos[fid])  # 限制最大位置
                     self.actuator.set_pos_with_vel(new_pos, 500, fid)
+                    self.grasp_state = "抓取中"
                 # elif total_force > self.max_force:
                 #     new_pos = positions[fid] - self.step
                 #     new_pos = max(new_pos, self.min_pos[fid])  # 限制最小位置
@@ -95,7 +95,8 @@ class SmartGrasper:
             # 判断抓取是否完成
             sorted_forces = sorted(finger_forces.values(), reverse=True)
             if len(sorted_forces) >= 2 and self.check_grasp(finger_forces, self.min_force * 2):
-                print("已稳定抓取 ✅", finger_forces)
+                print("已稳定抓取 ✅", finger_forces, self.grasp_state)
+                self.grasp_state = "已抓取"
                 break
 
             for _ in range(5):
@@ -119,6 +120,7 @@ class SmartGrasper:
         positions = dict(list(self.actuator.positions.items())[:4])
         for fid, pos in enumerate(positions, start=1):
             self.actuator.set_position(10, fid)  # 全部张开
+        self.grasp_state = "未抓取"
         print("释放完成 ✅")
     
 

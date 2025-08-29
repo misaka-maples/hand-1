@@ -40,15 +40,69 @@ class SensorCommunication:
         self._running = threading.Event()  # 正确的运行标志
         self._thread = None
         self.lock = threading.RLock()
+        self.force_history = {i: deque(maxlen=1) for i in range(1, 5)}
         if port is not None:
-            self.connect(port)
+            self.connect_port(port)
             self.init_box()
+        else:
+            self.connect_port(self.find_acm_ports())
     def run(self):
         while self._running.is_set():
-            
-            time.sleep(0.2)
+            start = time.time()
             self.get_all_force()
-            
+            end = time.time()
+            # print(self.force_data,end-start)
+
+            time.sleep(0.01)
+    def check_connection(self) -> bool:
+        """
+        检查当前串口连接是否正常
+        """
+        if self.ser is None:
+            return False
+        if not self.ser.is_open:
+            return False
+        return True
+    def find_acm_ports(self):
+        """扫描系统中所有包含 ACM 的串口"""
+        ports = serial.tools.list_ports.comports()
+        # print([p.device for p in ports if "ACM" in p.device])
+        return [p.device for p in ports if "ACM" in p.device]
+
+    def reconnect(self, retries: int = 3, delay: float = 2.0) -> bool:
+        """
+        尝试重新连接串口
+        """
+        logger.warning("检测到串口断开，开始尝试重连...")
+        self.stop_thread()
+        if self.ser:
+            try:
+                self.disconnect()
+                print("已断开串口连接")
+
+            except Exception:
+                pass
+            self.ser = None
+        time.sleep(1)
+        acm_ports = self.find_acm_ports()
+        if acm_ports == []:
+            logger.error("未检测到任何 ACM 串口")
+            return self.reconnect()
+        for port in acm_ports:
+            for attempt in range(1, retries + 1):
+                try:
+                    logger.warning(f"第 {attempt} 次重连 {port}...")
+                    if self.connect(port):
+                        if self.init_box():
+                            logger.warning("串口重连成功")
+                            self.start_thread()
+                            return True
+                except Exception as e:
+                    logger.error(f"重连失败: {e}")
+                time.sleep(delay)
+
+            logger.error("重连失败，已放弃")
+            return False
 
     def start_thread(self):
         if self._thread is None or not self._thread.is_alive():
@@ -74,7 +128,12 @@ class SensorCommunication:
             })
             logger.info(f"检测到可用串口: {port.device} - {port.description}")
         return ports
-    
+    def connect_port(self,port):
+        if isinstance(port,list):
+            for i in port:
+                self.connect(i)
+        elif isinstance(port,str):
+            self.connect(port)
     def connect(self, port: str = None) -> bool:
         """
         连接到指定串口
@@ -92,7 +151,6 @@ class SensorCommunication:
             if not self.port:
                 logger.error("未指定串口号")
                 return False
-                
             self.ser = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
             if self.ser.is_open:
                 self.connected = True
@@ -139,9 +197,13 @@ class SensorCommunication:
                 return True
             except Exception as e:
                 logger.error(f"发送数据时出错: {str(e)}")
+                self.reconnect()
+                if self.check_connection():
+                    self.ser.write(data_bytes)
+                    return True
                 return False
     
-    def read_serial_response(self, timeout: float = 0.01) -> Optional[bytes]:
+    def read_serial_response(self, timeout: float = 0.02) -> Optional[bytes]:
         """
         从串口读取回复数据
         
@@ -248,6 +310,21 @@ class SensorCommunication:
                 "command": "choose_port7",
                 "body": "0E 00 70 B1 0A 01 00 12",
                 "sleep": 1
+            },
+            8:{
+                "command": "choose_port8",
+                "body": "0E 00 70 B1 0A 01 00 15",
+                "sleep": 1
+            },
+            9:{
+                "command": "choose_port9",
+                "body": "0E 00 70 B1 0A 01 00 18",
+                "sleep": 1
+            },
+            10:{
+                "command": "choose_port10",
+                "body": "0E 00 70 B1 0A 01 00 1B",
+                "sleep": 1
             }
         }
         
@@ -319,7 +396,7 @@ class SensorCommunication:
             },
             "set_mode": {
                 "body": "0E 00 70 C0 0C 01 00 05",
-                "sleep": 2,
+                "sleep": 1,
                 "parse": "",
                 "description": "设置模式"
             },
@@ -415,7 +492,8 @@ class SensorCommunication:
                             logger.info(f"{fun}: 执行成功")
                             return "success"
                     else:
-                        logger.error(f"命令执行错误，错误码: {error:02X}")
+                        logger.error(f"命令 {fun} 执行失败，错误码: {error} (0x{error:02X})，原始响应: {response.hex(' ')}")
+                        # logger.error(f"命令执行错误，错误码: {error:02X}")
                         return {"error": error}
                 else:
                     logger.error("响应数据格式错误，头或尾不匹配")
@@ -473,7 +551,6 @@ class SensorCommunication:
             return None
 
         logger.info(f"从端口{port_id}获取{request_length}字节数据")
-
         # 获取原始数据
         data = self.get_ser_response(command, request_length)
         if isinstance(data, dict) and "error" in data:
@@ -555,10 +632,10 @@ class SensorCommunication:
             parsed_force = self.convert_hex_to_sensor_data(data, axis_types)
             if parsed_force:
                 parsed_force = [0 if f == -1 else f for f in parsed_force]
-                # print(parsed_force)
             else:
                 logger.warning(f"CN1合力数据解析失败，原始数据: {data}")
             if axis is None:
+                # print("get force",index, parsed_force)
                 return parsed_force
             else:
                 if axis == "fx":
@@ -569,19 +646,27 @@ class SensorCommunication:
                     return parsed_force[2]
                 else:
                     logger.warning(f"未知轴: {axis}")
-                    return None
+                    # return None
         else:
             return None
+            # parsed_force = self.get_force(index)
+            # return parsed_force
     def get_all_force(self):
         forces = {}
+        force_map = {
+            1:1,
+            2:4,
+            3:7,
+            4:10
+        }
         for i in range(1, 5):
-            force = self.get_force(i)
+            force = self.get_force(force_map[i])
             if force:
-                # 存入历史队列
+                # 存入历史队列（超出长度会自动丢弃旧值）
                 self.force_history[i].append(force)
-            # 如果队列非空，计算平均值
+
             if self.force_history[i]:
-                # 支持三轴向量平均
+                # 计算三轴平均
                 summed = [0, 0, 0]
                 for f in self.force_history[i]:
                     for j in range(3):
@@ -590,61 +675,26 @@ class SensorCommunication:
                 forces[i] = averaged
             else:
                 forces[i] = None
+
             self.force_data[i] = forces[i]
+
         return forces
 
-
-def main():
-    logger.info("力传感器数据采集程序启动")
-
-    sensor = SensorCommunication('/dev/ttyACM0',timeout=0.01)
-    sensor.start_thread()
-    # 选择串口
-    # chosen_port = '/dev/ttyACM0'
-    # if not sensor.connect(chosen_port):
-    #     logger.error("串口连接失败，程序退出")
-    #     return
-
-    # if not sensor.init_box():
-    #     logger.error("传感器初始化失败，程序退出")
-    #     return
-    # if not sensor.select_port(1):
-    #     logger.error(f"选择端口{1}失败")
-    #     return None
-    try:
-        while True:
-            start = time.time()
-            # sensor.get_force(1)
-            # sensor.get_all_force()
-            print(sensor.force_data)
-            end = time.time()
-            print(f"读取CN1合力数据耗时: {end - start:.2f}秒")
-            # sensor.get_force(2)
-            # sensor.get_force(3)
-            # sensor.get_force(4)
-            # sensor.get_force(5)
-            # sensor.get_force(6)
-            
-    except KeyboardInterrupt:
-        logger.info("用户中断程序")
-
-    except Exception as e:
-        logger.error(f"主循环异常: {e}")
-
-    finally:
-        sensor.disconnect()
-        logger.info("程序结束")
-
-
 if __name__ == "__main__":
-    sensor = SensorCommunication("/dev/ttyACM0")
+    sensor = SensorCommunication()
     time.sleep(1)
-    sensor.start_thread()
+    # sensor.start_thread()
     try:
         while True:
+            # start = time.time()
+            # sensor.get_force(10)
+            # end = time.time()
+            # print("Time taken:", end - start)
+            # # time.sleep(1)
+            # sensor.get_force(1)
+            sensor.get_force(7)
             # sensor.get_all_force()
-            print(sensor.force_data)
-            time.sleep(0.1)
+            time.sleep(0.5)
     except KeyboardInterrupt:
         sensor.stop_thread()
 

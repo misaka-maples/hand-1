@@ -4,6 +4,11 @@ from backend.touch_sensor import SensorCommunication
 import time
 from backend.camera import get_frames
 from backend.SmartGrasper import SmartGrasper  
+import logging
+
+# 获取 werkzeug logger
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.WARNING)
 
 # 初始化硬件
 actuator = ServoActuator("/dev/ttyUSB0", 921600)
@@ -25,6 +30,11 @@ def control():
     """子页面：自由度控制"""
     return render_template("control.html")
 
+@app.route("/grasp_status")
+def grasp_status():
+    grasp_state = {"status": grasping.grasp_state}  # 也可以是 "抓取中" / "完成"
+    return jsonify(grasp_state)
+
 # ----------------------
 # API 接口
 # ----------------------
@@ -45,6 +55,7 @@ def command():
     if cmd == "reset":
         actuator.clear_fault()
         actuator.reset_grasp()
+        grasping.grasp_state = "等待状态"
     elif cmd == "clear_fault":
         actuator.clear_fault()
     else:
@@ -71,9 +82,12 @@ def force_data():
     """获取三维力传感器数据"""
     sensors = []
     for i in range(1, 5):  # 假设有4个传感器
-        force = touch_sensor.force_data[i]
-        if force is not None:
-            sensor = {"fx": force[0], "fy": force[1], "fz": force[2], "error_code": 0}
+        if len(touch_sensor.force_data) == 4:
+            force = touch_sensor.force_data[i]
+            if force is not None:
+                sensor = {"fx": force[0], "fy": force[1], "fz": force[2], "error_code": 0}
+            else:
+                sensor = {"fx": None, "fy": None, "fz": None, "error_code": 0}
         else:
             sensor = {"fx": None, "fy": None, "fz": None, "error_code": 0}
         sensors.append(sensor)
@@ -94,11 +108,13 @@ def grasp():
         is_grasping = True
         actuator.clear_fault()
         grasping.start_thread()
+        grasping.grasp_state = "抓取中"
         print("开始抓取")
     elif cmd == "stop_grasp":
         is_grasping = False
         actuator.clear_fault()
         grasping.stop_thread()
+        
         print("停止抓取")
     else:
         return jsonify({"status": "error", "msg": "未知命令"}), 400

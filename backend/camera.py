@@ -42,7 +42,12 @@ def send_command(detected_ids):
         notify_server("http://localhost:5000/command?cmd=clear_fault")
         notify_server("http://localhost:5000/grasp","stop_grasp")
         notify_server("http://localhost:5000/command?cmd=clear_fault")
+        notify_server("http://localhost:5000/command?cmd=clear_fault")
         notify_server("http://localhost:5000/command?cmd=reset")
+        notify_server("http://localhost:5000/command?cmd=clear_fault")
+        notify_server("http://localhost:5000/command?cmd=reset")
+        notify_server("http://localhost:5000/command?cmd=clear_fault")
+
         # print("Rock disappeared -> is_grasp set to False")
     else:
         pass
@@ -102,7 +107,7 @@ def draw_custom_boxes(frame, results, is_grasp):
 
     return frame
 def get_frames():
-    cap = cv2.VideoCapture(0)  # 0 表示默认摄像头
+    cap = cv2.VideoCapture(4)  # 0 表示默认摄像头
     if not cap.isOpened():
         raise RuntimeError("无法打开摄像头")
 
@@ -115,7 +120,7 @@ def get_frames():
 
         # 如果需要翻转（有的摄像头会倒置），可以启用这一行
         frame = cv2.flip(frame, 1)
-        results = model(frame, verbose=False)
+        results = model(frame, verbose=False,conf = 0.2)
 
         # -------------------------
         # 获取当前帧检测到的 object_id

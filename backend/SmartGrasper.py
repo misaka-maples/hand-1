@@ -9,9 +9,9 @@ class SmartGrasper:
         self.sensors :SensorCommunication= sensors
         self.actuator :ServoActuator = actuator
         # 力阈值（不同物体可调节）
-        self.min_force = 15     # 检测到物体的最小力
+        self.min_force = 30     # 检测到物体的最小力
         self.max_force = 200    # 安全力，超过可能损坏物体
-        self.max_pos = {1: 1200, 2: 1200, 3: 1200, 4: 1000}  # 可以根据实际调整
+        self.max_pos = {1: 1000, 2: 1000, 3: 980, 4: 850}  # 可以根据实际调整
         self.min_pos = {1: 0, 2: 0, 3: 0, 4: 0}
         self.grasp_state = "未抓取"
         self.step = 1000         # 每次移动的步长

@@ -654,9 +654,9 @@ class SensorCommunication:
     def get_all_force(self):
         forces = {}
         force_map = {
-            1:1,
+            1:7,
             2:4,
-            3:7,
+            3:1,
             4:10
         }
         for i in range(1, 5):
@@ -683,7 +683,7 @@ class SensorCommunication:
 if __name__ == "__main__":
     sensor = SensorCommunication()
     time.sleep(1)
-    # sensor.start_thread()
+    sensor.start_thread()
     try:
         while True:
             # start = time.time()
@@ -692,8 +692,9 @@ if __name__ == "__main__":
             # print("Time taken:", end - start)
             # # time.sleep(1)
             # sensor.get_force(1)
-            sensor.get_force(7)
-            # sensor.get_all_force()
+            # sensor.get_force(7)
+            sensor.get_all_force()
+            print(sensor.force_data)
             time.sleep(0.5)
     except KeyboardInterrupt:
         sensor.stop_thread()

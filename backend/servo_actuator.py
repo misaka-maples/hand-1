@@ -215,7 +215,8 @@ class ServoActuator:
     def reset_grasp(self):
         for i in range(1, 5):
             self.set_pos_with_vel(100,500, i)
-        self.set_pos_with_vel(1998,500, 5)
+        self.set_pos_with_vel(200,500, 2)
+        self.set_pos_with_vel(1708,500, 5)
         self.set_pos_with_vel(10,500, 6)
 
 if __name__ == "__main__":

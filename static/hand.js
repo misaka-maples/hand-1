@@ -114,11 +114,10 @@ function updateButton() {
 
 // 页面加载时初始化按钮状态
 updateButton();
-
 document.addEventListener("DOMContentLoaded", () => {
 
     const container = document.getElementById("force-image-container");
-    const updateInterval = 500;
+    const updateInterval = 100;
 
     // 色块在图片上的相对位置（百分比）
     const positions = [
@@ -146,8 +145,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 const box = document.createElement("div");
                 box.className = "force-box";
+                // const threshold = 35;
+                // let isOverThreshold = false;
+                // data.sensors.forEach(sensor => {
+                //     const fx = sensor.fx || 0;
+                //     const fy = sensor.fy || 0;
+                //     const fz = sensor.fz || 0;
+                //     if (Math.abs(fx) >= threshold || Math.abs(fy) >= threshold || Math.abs(fz) >= threshold) {
+                //         isOverThreshold = true;
+                //     }
+                // });
 
-                const threshold = 20;  // 阈值，比如 50N
+                // // 清除旧色块
+                // const oldBoxes = container.querySelectorAll(".force-box");
+                // oldBoxes.forEach(b => b.remove());
+
+                // // 添加新色块（统一颜色）
+                // data.sensors.forEach((sensor, index) => {
+                //     const box = document.createElement("div");
+                //     box.className = "force-box";
+
+                //     if (isOverThreshold) {
+                //         box.style.backgroundColor = "rgb(255,0,0)";  // 全部红色
+                //     } else {
+                //         box.style.backgroundColor = "rgb(0,255,0)";  // 全部绿色
+                //     }
+
+                //     const pos = positions[index] || { left: 0, top: 0 };
+                //     box.style.left = pos.left + "%";
+                //     box.style.top = pos.top + "%";
+
+                //     container.appendChild(box);
+                // });
+                const threshold = 10;  // 阈值，比如 15N
 
                 // 判断是否任意一个分量超过阈值
                 if (Math.abs(fx) >= threshold || Math.abs(fy) >= threshold || Math.abs(fz) >= threshold) {
@@ -163,11 +193,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 container.appendChild(box);
             });
 
-
-            // --- 更新表格 ---
+            // --- 更新右边三维力传感器表 ---
             const tableBody = document.getElementById("force-table");
             tableBody.innerHTML = "";  // 清空旧数据
-
             data.sensors.forEach((sensor, index) => {
                 const fx = sensor.fx || 0;
                 const fy = sensor.fy || 0;
@@ -177,13 +205,31 @@ document.addEventListener("DOMContentLoaded", () => {
                 const row = document.createElement("tr");
                 row.innerHTML = `
                     <td>${index + 1}</td>
-                    <td>${fx.toFixed(2)}</td>
-                    <td>${fy.toFixed(2)}</td>
-                    <td>${fz.toFixed(2)}</td>
+                    <td>${(fx * 0.1).toFixed(2)}</td>
+                    <td>${(fy * 0.1).toFixed(2)}</td>
+                    <td>${(fz * 0.1).toFixed(2)}</td>
                     <td>${error}</td>
                 `;
                 tableBody.appendChild(row);
             });
+
+            // --- 更新视频下方四指 Fz 表 ---
+            const fzTableBody = document.getElementById("fz-table");
+            if (fzTableBody) {
+                fzTableBody.innerHTML = "";
+                data.sensors.forEach((sensor, index) => {
+                    const fx = sensor.fx || 0;
+                    const fy = sensor.fy || 0;
+                    const fz = sensor.fz || 0;
+                    force_total = (fx ** 2 + fy ** 2 + fz ** 2) ** 0.5;  // 计算合力
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>传感器 ${index + 1}</td>
+                        <td>${(force_total * 0.1).toFixed(2)}</td>
+                    `;
+                    fzTableBody.appendChild(row);
+                });
+            }
 
         } catch (err) {
             console.error("力数据更新失败:", err);
@@ -193,10 +239,11 @@ document.addEventListener("DOMContentLoaded", () => {
     setInterval(updateForceBlocks, updateInterval);
 });
 
-
-
-// 每 500ms 更新一次
-setInterval(updateForceTable, 100);
+// function updateForceTable() {
+//     updateForceBlocks();  // 实际调用已有的函数
+// }
+// // 每 500ms 更新一次
+// setInterval(updateForceTable, 100);
 
 function formatForce(val) {
     if (val === null || val === -1) {

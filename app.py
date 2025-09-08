@@ -2,7 +2,7 @@ from flask import Flask, request, render_template, jsonify, Response
 from backend.servo_actuator import ServoActuator  
 from backend.touch_sensor import SensorCommunication
 import time
-from backend.camera import get_frames
+# from backend.camera import get_frames
 from backend.SmartGrasper import SmartGrasper  
 import logging
 
@@ -44,28 +44,42 @@ def set_dof():
     dof = int(request.args.get("dof"))
     value = int(request.args.get("value"))
     actuator.set_mode(0, dof)
-    actuator.set_pos_with_vel(value, 800, dof)
+    actuator.set_pos_with_vel(value, 300, dof)
     return f"Set DOF{dof} to {value}"
 
 @app.route("/command", methods=["POST"])
 def command():
     """执行控制命令"""
-    cmd = request.args.get("cmd")
-    print(cmd)
-    if cmd == "reset":
+    data = request.get_json()  # 解析 JSON
+    if not data or "cmd" not in data:
+        return jsonify({"status": "error", "msg": "缺少 cmd"}), 400
+
+    cmd = data["cmd"]
+    if cmd == "reset_grasp":
+        print("Resetting...")
+        grasping.stop_thread()
         actuator.clear_fault()
         actuator.reset_grasp()
         grasping.grasp_state = "等待状态"
+        is_grasping = False
     elif cmd == "clear_fault":
         actuator.clear_fault()
     else:
         return "Unknown command", 400
-    return f"Command executed: {cmd}"
-
+    return jsonify({"status": "ok", "is_grasping": is_grasping})
 @app.route("/status", methods=["GET"])
 def status():
     """查询关节状态"""
     status_info = actuator.info
+    dict = {
+            1: status_info[1]["temperature_C"],
+            2: status_info[2]["temperature_C"],
+            3: status_info[3]["temperature_C"],
+            4: status_info[4]["temperature_C"],
+            5: status_info[5]["temperature_C"],
+            6: status_info[6]["temperature_C"]
+        }
+    print(dict)
     if not status_info:
         return jsonify({"error": "no data"})
     return jsonify({
@@ -93,17 +107,19 @@ def force_data():
         sensors.append(sensor)
     return jsonify({"sensors": sensors})
 
-@app.route("/video_feed")
-def video_feed():
-    """视频流接口"""
-    return Response(get_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
+# @app.route("/video_feed")
+# def video_feed():
+#     """视频流接口"""
+#     return Response(get_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
+
 
 @app.route("/grasp", methods=["POST"])
 def grasp():
-    """自动抓取控制"""
-    global is_grasping
-    data = request.json
-    cmd = data.get("cmd")
+    data = request.get_json()
+    if not data or "cmd" not in data:
+        return jsonify({"status": "error", "msg": "缺少 cmd"}), 400
+
+    cmd = data["cmd"]
     if cmd == "start_grasp":
         is_grasping = True
         actuator.clear_fault()
@@ -114,7 +130,6 @@ def grasp():
         is_grasping = False
         actuator.clear_fault()
         grasping.stop_thread()
-        
         print("停止抓取")
     else:
         return jsonify({"status": "error", "msg": "未知命令"}), 400

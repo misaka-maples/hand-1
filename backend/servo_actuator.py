@@ -15,7 +15,7 @@ class ServoActuator:
         self.baudrate = baudrate
         self.timeout = timeout
         self.ser = serial.Serial(port, baudrate, timeout=timeout)
-        self.positions = {}
+        self.positions = {1: 0, 2: 0, 3: 0, 4: 0}
         self.info = {}
         self._running = threading.Event()  # 正确的运行标志
         self._thread = None
@@ -212,13 +212,40 @@ class ServoActuator:
                 self.info[id_addr] = None
                 positions.append(None)
         return positions
-    def reset_grasp(self):
-        for i in range(1, 5):
-            self.set_pos_with_vel(100,500, i)
-        self.set_pos_with_vel(200,500, 2)
-        self.set_pos_with_vel(1708,500, 5)
-        self.set_pos_with_vel(10,500, 6)
 
+    def reset_grasp(self):
+        # 目标位置
+        targets = {
+            1: 100,
+            2: 100,
+            3: 0,    # 如果不动可以设为当前值
+            4: 0,
+            5: 1708,
+            6: 10
+        }
+        self.clear_fault()
+
+        # 发送初始位置命令
+        for i in range (1,7): 
+            self.set_pos_with_vel(targets[i], 300, i)
+
+
+        # 阻塞等待，直到 positions 达到目标
+        # while True:
+        #     i=0
+        #     i+=1
+        #     match = True
+        #     for idx, target in targets.items():
+        #         if self.positions.get(idx, -1) != target:
+        #             match = False
+        #             break
+        #     if match:
+        #         break
+        #     time.sleep(0.01)  # 防止 CPU 空转，休眠 10ms
+        #     if 1==100:
+        #         self.positions = targets
+        # 重置手指位置
+        print("Reset 完成，手指位置已到达目标")
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
     actuator.start_thread()

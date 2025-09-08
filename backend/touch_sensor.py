@@ -36,7 +36,7 @@ class SensorCommunication:
         self.connected = False
         self.current_port = None
         self.error_code = {1: None, 2: None, 3: None, 4: None, 5: None, 6: None,7:None}
-        self.force_data = {}
+        self.force_data = {1: None, 2: None, 3: None, 4: None}
         self._running = threading.Event()  # 正确的运行标志
         self._thread = None
         self.lock = threading.RLock()
@@ -53,7 +53,7 @@ class SensorCommunication:
             end = time.time()
             # print(self.force_data,end-start)
 
-            time.sleep(0.01)
+            time.sleep(0.05)
     def check_connection(self) -> bool:
         """
         检查当前串口连接是否正常

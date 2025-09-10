@@ -58,8 +58,8 @@ def create_finger(lengths, angles, colors=None):
     return meshes, final_dir,pivot
 
 if __name__ == "__main__":
-    lengths = [0.08, 0.03]   # 两节手指
-    angles  = [np.deg2rad(0), np.deg2rad(90)]  # 第二节相对于第一节
+    lengths = [0.04700,0.0434822]   # 两节手指
+    angles  = [np.deg2rad(0), np.deg2rad(11.795026563914718)]  # 第二节相对于第一节
     finger, final_dir, pivot = create_finger(lengths, angles)
 
     # === 地面 ===

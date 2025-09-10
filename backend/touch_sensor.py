@@ -247,124 +247,83 @@ class SensorCommunication:
         logger.debug(f"LRC校验码计算结果: {lrc:02X}")
         return lrc
     
-    def select_port(self, port_id: int) -> bool:
+    def select_port(self, port_id: int, tip: bool = True) -> bool:
         """
         选择指定的物理端口
-        
+
         参数:
-            port_id: 端口ID，1或2
-            
+            port_id: 端口ID (1~10)
+            tip: 是否是指尖 (True=指尖, False=指腹)
+
         返回:
             端口选择是否成功
         """
         if not self.connected:
             logger.error("未连接到串口，无法选择端口")
             return False
-            
 
-            
-        # 如果已经选择了该端口，则无需重复选择
-        if self.current_port == port_id:
-            logger.info(f"已选择端口{port_id}，无需重复选择")
+        # 如果已经选择了该端口，并且 tip 状态一致，则无需重复选择
+        if self.current_port == (port_id, tip):
+            logger.info(f"已选择端口{port_id} ({'指尖' if tip else '指腹'})，无需重复选择")
             return True
-            
+
         # 选择端口的命令配置
         port_commands = {
-            1: {
-                #CN1
-                "command": "choose_port1",
-                "body": "0E 00 70 B1 0A 01 00 00",
-                "sleep": 1
-            },
-            2: {
-                #CN2
-                "command": "choose_port2",
-                "body": "0E 00 70 B1 0A 01 00 03",
-                "sleep": 1
-            },
-            3: {
-                #CN1
-                "command": "choose_port3",
-                "body": "0E 00 70 B1 0A 01 00 06",
-                "sleep": 1
-            },
-            4: {
-                #CN2
-                "command": "choose_port4",
-                "body": "0E 00 70 B1 0A 01 00 09",
-                "sleep": 1
-            },
-            5: {
-                #CN1
-                "command": "choose_port5",
-                "body": "0E 00 70 B1 0A 01 00 0D",
-                "sleep": 1
-            },
-            6: {
-                #CN2
-                "command": "choose_port6",
-                "body": "0E 00 70 B1 0A 01 00 10",
-                "sleep": 1
-            },
-            7:{
-                "command": "choose_port7",
-                "body": "0E 00 70 B1 0A 01 00 12",
-                "sleep": 1
-            },
-            8:{
-                "command": "choose_port8",
-                "body": "0E 00 70 B1 0A 01 00 15",
-                "sleep": 1
-            },
-            9:{
-                "command": "choose_port9",
-                "body": "0E 00 70 B1 0A 01 00 18",
-                "sleep": 1
-            },
-            10:{
-                "command": "choose_port10",
-                "body": "0E 00 70 B1 0A 01 00 1B",
-                "sleep": 1
-            }
+            1: {"command": "choose_port1", "body": "0E 00 70 B1 0A 01 00 00", "sleep": 1},
+            2: {"command": "choose_port2", "body": "0E 00 70 B1 0A 01 00 03", "sleep": 1},
+            3: {"command": "choose_port3", "body": "0E 00 70 B1 0A 01 00 06", "sleep": 1},
+            4: {"command": "choose_port4", "body": "0E 00 70 B1 0A 01 00 09", "sleep": 1},
+            5: {"command": "choose_port5", "body": "0E 00 70 B1 0A 01 00 0C", "sleep": 1},
+            6: {"command": "choose_port6", "body": "0E 00 70 B1 0A 01 00 0F", "sleep": 1},
+            7: {"command": "choose_port7", "body": "0E 00 70 B1 0A 01 00 12", "sleep": 1},
+            8: {"command": "choose_port8", "body": "0E 00 70 B1 0A 01 00 15", "sleep": 1},
+            9: {"command": "choose_port9", "body": "0E 00 70 B1 0A 01 00 18", "sleep": 1},
+            10: {"command": "choose_port10", "body": "0E 00 70 B1 0A 01 00 1B", "sleep": 1},
         }
-        
+
+        if port_id not in port_commands:
+            logger.error(f"无效的端口ID: {port_id}")
+            return False
+
         cmd = port_commands[port_id]
         head = "55 AA 7B 7B"
         body = cmd["body"]
+
+        # 如果是指腹，把最后一个字节 +1
+        if not tip:
+            parts = body.split()
+            last_val = int(parts[-1], 16)
+            parts[-1] = f"{(last_val + 1) & 0xFF:02X}"  # 防止溢出超过 0xFF
+            body = " ".join(parts)
         sleep_time = cmd["sleep"]
-        
+
         # 计算LRC校验码
         data_bytes = bytes.fromhex(body.replace(' ', ''))
         lrc = self.calculate_lrc(data_bytes)
         tail = "55 AA 7D 7D"
-        
+
         # 构建完整发送数据
         full_hex_data = f"{head} {body} {lrc:02X} {tail}"
-        logger.info(f"选择端口{port_id}: {full_hex_data}")
-        
+        logger.info(f"选择端口{port_id} ({'指尖' if tip else '指腹'}): {full_hex_data}")
+
         # 发送选择端口命令
         if not self.send_hex_data(full_hex_data):
             return False
-            
-        # 等待命令执行完成
-        # time.sleep(sleep_time)
-        
+
         # 读取响应（可选）
         response = self.read_serial_response()
         if response:
-            # 简单验证是否成功
             if len(response) >= 16 and response[9] == 0x00:
-                self.current_port = port_id
-                logger.info(f"成功选择端口{port_id}")
+                self.current_port = (port_id, tip)
+                logger.info(f"成功选择端口{port_id} ({'指尖' if tip else '指腹'})")
                 return True
             else:
-                logger.warning(f"选择端口{port_id}可能失败，响应: {response.hex(' ')}")
-        
-        # 即使没有响应，也假设命令已发送
-        self.current_port = port_id
-        logger.info(f"已发送端口{port_id}选择命令，等待确认")
+                logger.warning(f"选择端口{port_id} ({'指尖' if tip else '指腹'}) 可能失败，响应: {response.hex(' ')}")
+
+        self.current_port = (port_id, tip)
+        logger.info(f"已发送端口{port_id} ({'指尖' if tip else '指腹'}) 选择命令，等待确认")
         return True
-    
+
     def get_ser_response(self, fun: str, length: int = 0) -> Optional[str]:
         """
         向传感器发送命令并获取响应
@@ -528,8 +487,8 @@ class SensorCommunication:
         except Exception as e:
             logger.error(f"初始化过程中出错: {str(e)}")
             return False
-    
-    def get_port_data(self, port_id: int, request_length: int, command: str = 'get_force') -> Optional[List[int]]:
+
+    def get_port_data(self, port_id: int, request_length: int, command: str = 'get_force', tip=True) -> Optional[List[int]]:
         """
         从指定端口获取传感器数据
 
@@ -546,7 +505,7 @@ class SensorCommunication:
             return None
 
         # 选择端口
-        if not self.select_port(port_id):
+        if not self.select_port(port_id,tip):
             logger.error(f"选择端口{port_id}失败")
             return None
 
@@ -625,8 +584,8 @@ class SensorCommunication:
         except Exception as e:
             logger.error(f"数据转换异常: {e}")
             return None
-    def get_force(self, index, axis=None):
-        data = self.get_port_data(index, 3, 'get_force')
+    def get_force(self, index, axis=None, tip=True):
+        data = self.get_port_data(index, 3, 'get_force', tip=tip)
         if data:
             axis_types = ["signed", "signed", "unsigned"]
             parsed_force = self.convert_hex_to_sensor_data(data, axis_types)
@@ -635,7 +594,7 @@ class SensorCommunication:
             else:
                 logger.warning(f"CN1合力数据解析失败，原始数据: {data}")
             if axis is None:
-                # print("get force",index, parsed_force)
+                print("get force",index, parsed_force)
                 return parsed_force
             else:
                 if axis == "fx":
@@ -683,18 +642,23 @@ class SensorCommunication:
 if __name__ == "__main__":
     sensor = SensorCommunication()
     time.sleep(1)
-    sensor.start_thread()
+    # sensor.start_thread()
     try:
         while True:
             # start = time.time()
-            # sensor.get_force(10)
+            sensor.get_force(1)
+            sensor.get_force(3,tip=False)
+            sensor.get_force(5)
+            sensor.get_force(6,tip=False)
+            sensor.get_force(7,tip=False)
+
             # end = time.time()
             # print("Time taken:", end - start)
             # # time.sleep(1)
             # sensor.get_force(1)
             # sensor.get_force(7)
             # sensor.get_all_force()
-            print(sensor.force_data)
+            # print(sensor.force_data)
             time.sleep(0.5)
     except KeyboardInterrupt:
         sensor.stop_thread()

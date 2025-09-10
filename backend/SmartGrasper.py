@@ -97,7 +97,7 @@ class SmartGrasper:
             # 判断抓取是否完成
             sorted_forces = sorted(finger_forces.values(), reverse=True)
             if len(sorted_forces) >= 2 and self.check_grasp(finger_forces, self.min_force * 2):
-                print("已稳定抓取 ✅", finger_forces, self.grasp_state)
+                print("已稳定抓取 ✅", finger_forces, self.grasp_state,actuator.positions)
                 self.grasp_state = "已抓取"
                 break
 

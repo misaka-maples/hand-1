@@ -40,7 +40,6 @@ class SensorCommunication:
         self._running = threading.Event()  # 正确的运行标志
         self._thread = None
         self.lock = threading.RLock()
-        self.force_history = {i: deque(maxlen=1) for i in range(1, 5)}
         if port is not None:
             self.connect_port(port)
             self.init_box()
@@ -594,7 +593,7 @@ class SensorCommunication:
             else:
                 logger.warning(f"CN1合力数据解析失败，原始数据: {data}")
             if axis is None:
-                print("get force",index, parsed_force)
+                # print("get force",index, parsed_force)
                 return parsed_force
             else:
                 if axis == "fx":
@@ -613,13 +612,28 @@ class SensorCommunication:
     def get_all_force(self):
         forces = {}
         force_map = {
-            1:1,
-            2:4,
-            3:7,
-            4:10
+            1:[1,'tip'],
+            2:3,
+            3:[5,'tip'],
+            4:6,
+            5:7,
+            6:[9,'tip'],
+            7:[10,'tip'],
         }
-        for i in range(1, 5):
-            force = self.get_force(force_map[i])
+        for i in range(1, len(force_map) + 1):
+            fmap = force_map[i]
+
+            sensor_id, sensor_type = None, "default"
+            if isinstance(fmap, list):
+                sensor_id, sensor_type = fmap[0], fmap[1]
+            else:
+                sensor_id = fmap
+            # print("sensor id",sensor_id,sensor_type)
+            if sensor_type == 'tip':
+                force = self.get_force(sensor_id, tip=True)
+            else:
+                force = self.get_force(sensor_id, tip=False)
+
             if force:
                 # 存入历史队列（超出长度会自动丢弃旧值）
                 self.force_history[i].append(force)
@@ -631,10 +645,11 @@ class SensorCommunication:
                     for j in range(3):
                         summed[j] += f[j]
                 averaged = [round(s / len(self.force_history[i]), 2) for s in summed]
-                forces[i] = averaged
+                forces[i] = {"force": averaged, "type": sensor_type}
             else:
-                forces[i] = None
+                forces[i] = {"force": None, "type": sensor_type}
 
+            # 更新到 self.force_data
             self.force_data[i] = forces[i]
 
         return forces
@@ -642,24 +657,26 @@ class SensorCommunication:
 if __name__ == "__main__":
     sensor = SensorCommunication()
     time.sleep(1)
-    # sensor.start_thread()
+    sensor.start_thread()
     try:
         while True:
             # start = time.time()
-            sensor.get_force(1)
-            sensor.get_force(3,tip=False)
-            sensor.get_force(5)
-            sensor.get_force(6,tip=False)
-            sensor.get_force(7,tip=False)
-
+            
+            # sensor.get_force(1)
+            # sensor.get_force(3,tip=False)
+            # sensor.get_force(5)
+            # sensor.get_force(6,tip=False)
+            # sensor.get_force(7,tip=False)
+            # sensor.get_force(9)
+            # sensor.get_force(10)
             # end = time.time()
             # print("Time taken:", end - start)
             # # time.sleep(1)
             # sensor.get_force(1)
             # sensor.get_force(7)
             # sensor.get_all_force()
-            # print(sensor.force_data)
             time.sleep(0.5)
+            print(sensor.force_data)
     except KeyboardInterrupt:
         sensor.stop_thread()
 

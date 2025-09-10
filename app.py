@@ -54,6 +54,7 @@ def command():
     print(cmd)
     if cmd == "reset":
         actuator.clear_fault()
+        grasping.stop_thread()
         actuator.reset_grasp()
         grasping.grasp_state = "等待状态"
     elif cmd == "clear_fault":
@@ -81,15 +82,16 @@ def status():
 def force_data():
     """获取三维力传感器数据"""
     sensors = []
-    for i in range(1, 5):  # 假设有4个传感器
-        if len(touch_sensor.force_data) == 4:
-            force = touch_sensor.force_data[i]
+    for i in range(1, 8):  
+        error_code = touch_sensor.error_code[i]
+        if len(touch_sensor.force_data) == 7:
+            force = touch_sensor.force_data.get(i,0)['force']
             if force is not None:
-                sensor = {"fx": force[0], "fy": force[1], "fz": force[2], "error_code": 0}
+                sensor = {"fx": force[0], "fy": force[1], "fz": force[2], "error_code": error_code}
             else:
-                sensor = {"fx": None, "fy": None, "fz": None, "error_code": 0}
+                sensor = {"fx": None, "fy": None, "fz": None, "error_code": error_code}
         else:
-            sensor = {"fx": None, "fy": None, "fz": None, "error_code": 0}
+            sensor = {"fx": None, "fy": None, "fz": None, "error_code": error_code}
         sensors.append(sensor)
     return jsonify({"sensors": sensors})
 

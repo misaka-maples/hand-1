@@ -155,7 +155,7 @@ class ServoActuator:
         """设置目标位置和速度（步）"""
         with self.lock:
             if self.info != {}:
-                for i in range(len(self.info)):
+                for i in self.info.keys():
                     self.error_code[i] = self.info[i]['error_code'] if self.info[i]['error_code'] != 0 else 0
             if all(value == 0 for value in self.error_code.values()):
                 cmd = self._build_cmd(self.CMD_WR_REGISTER, 0x25, [0X0002,0X0000,0X0000, velocity,position], id_addr=id_addr)
@@ -225,8 +225,8 @@ class ServoActuator:
     def reset_grasp(self):
         for i in range(1, 5):
             self.set_pos_with_vel(100,500, i)
-        self.set_pos_with_vel(1998,500, 5)
-        self.set_pos_with_vel(10,500, 6)
+        self.set_pos_with_vel(1700,500, 5)
+        self.set_pos_with_vel(1300,500, 6)
 
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
@@ -234,13 +234,13 @@ if __name__ == "__main__":
     try:
         
         actuator.clear_fault()
-        actuator.set_pos_with_vel(0,500, 1)
-        actuator.set_pos_with_vel(0,500, 2)
-        actuator.set_pos_with_vel(0,500, 3)
-        actuator.set_pos_with_vel(0,500, 4)
+        # actuator.set_pos_with_vel(0,500, 1)
+        # actuator.set_pos_with_vel(0,500, 2)
+        # actuator.set_pos_with_vel(0,500, 3)
+        # actuator.set_pos_with_vel(0,500, 4)
 
         # actuator.set_pos_with_vel(0,500,1)
-        # actuator.reset_grasp()
+        actuator.reset_grasp()
         # x = 20
         # actuator.set_speed(x,1,1)
         # actuator.set_mode(2,1)
@@ -251,19 +251,19 @@ if __name__ == "__main__":
         # print(actuator.positions)
         # actuator.send_message(0x31,0x24,0x40,1)
         while True:
-            actuator.clear_fault()
-            actuator.set_pos_with_vel(0,500, 1)
-            actuator.set_pos_with_vel(0,500, 2)
-            actuator.set_pos_with_vel(0,500, 3)
+            # actuator.clear_fault()
+            # actuator.set_pos_with_vel(0,500, 1)
+            # actuator.set_pos_with_vel(0,500, 2)
+            # actuator.set_pos_with_vel(0,500, 3)
             # actuator.set_pos_with_vel(0,500, 4)
             # actuator.set_position(1)
             # for i in range(1,5):
             #     actuator.set_position(100,i)
-            time.sleep(8)
-            actuator.clear_fault()
-            actuator.set_pos_with_vel(1800,500, 1)
-            actuator.set_pos_with_vel(1800,500, 2)
-            actuator.set_pos_with_vel(1800,500, 3)
+            # time.sleep(8)
+            # actuator.clear_fault()
+            # actuator.set_pos_with_vel(1800,500, 1)
+            # actuator.set_pos_with_vel(1800,500, 2)
+            # actuator.set_pos_with_vel(1800,500, 3)
             time.sleep(8)
             print(actuator.positions)
 

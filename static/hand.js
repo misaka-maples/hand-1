@@ -9,6 +9,7 @@ for (let i = 1; i <= 6; i++) {
         sendSliderValue(i, slider.value);
     });
 }
+const btn = document.getElementById("graspBtn");
 
 function sendSliderValue(dof, value) {
     fetch(`/set_dof?dof=${dof}&value=${value}`, { method: 'POST' })
@@ -22,6 +23,9 @@ function sendCommand(cmd) {
         .then(res => res.text())
         .then(data => console.log(`Command: ${cmd}`, data))
         .catch(err => console.error(err));
+    btn.textContent = "开始抓取";
+    btn.classList.remove("btn-danger");
+    btn.classList.add("btn-success");
 }
 
 function updateStatusTable() {
@@ -59,9 +63,32 @@ function updateStatusTable() {
 // 每 100 毫秒刷新一次状态
 setInterval(updateStatusTable, 100);
 
-const btn = document.getElementById("graspBtn");
 let isGrasping = false; // 本地状态
 
+// 封装按钮更新函数
+function updateButton() {
+    // const statusText = document.getElementById("grasp-status");
+
+    if (isGrasping) {
+        btn.textContent = "停止抓取";
+        btn.classList.remove("btn-success");
+        btn.classList.add("btn-danger");
+
+        // 更新状态文字
+        // statusText.textContent = "正在抓取...";
+        // statusText.classList.remove("text-secondary");
+        // statusText.classList.add("text-success");
+    } else {
+        btn.textContent = "开始抓取";
+        btn.classList.remove("btn-danger");
+        btn.classList.add("btn-success");
+
+        // 更新状态文字
+        // statusText.textContent = "等待状态...";
+        // statusText.classList.remove("text-success");
+        // statusText.classList.add("text-secondary");
+    }
+}
 // 点击按钮触发抓取/停止
 btn.addEventListener("click", async () => {
     const cmd = isGrasping ? "stop_grasp" : "start_grasp";
@@ -87,30 +114,6 @@ btn.addEventListener("click", async () => {
     }
 });
 
-// 封装按钮更新函数
-// function updateButton() {
-//     const statusText = document.getElementById("grasp-status");
-
-//     if (isGrasping) {
-//         btn.textContent = "停止抓取";
-//         btn.classList.remove("btn-success");
-//         btn.classList.add("btn-danger");
-
-//         // 更新状态文字
-//         statusText.textContent = "正在抓取...";
-//         statusText.classList.remove("text-secondary");
-//         statusText.classList.add("text-success");
-//     } else {
-//         btn.textContent = "开始抓取";
-//         btn.classList.remove("btn-danger");
-//         btn.classList.add("btn-success");
-
-//         // 更新状态文字
-//         statusText.textContent = "等待状态...";
-//         statusText.classList.remove("text-success");
-//         statusText.classList.add("text-secondary");
-//     }
-// }
 
 // 页面加载时初始化按钮状态
 // updateButton();
@@ -139,16 +142,16 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // --- 更新色块 ---
     async function updateForceBlocks() {
+        const container = document.getElementById("force-image-container"); // 父容器
+        if (!container) return;  // 没有父容器就直接返回
+
         const sensors = await fetchForceData();
+        if (!sensors || sensors.length === 0) return;  // 没有数据就不画
 
         // 清空旧色块
         const oldBoxes = container.querySelectorAll(".force-box");
         oldBoxes.forEach(b => b.remove());
-
-        // 如果没有数据就不画色块
-        if (sensors.length === 0) return;
 
         sensors.forEach((sensor, index) => {
             const fx = sensor.fx || 0;
@@ -172,6 +175,7 @@ document.addEventListener("DOMContentLoaded", () => {
             container.appendChild(box);
         });
     }
+
 
     // --- 更新表格 ---
     async function updateForceTable() {

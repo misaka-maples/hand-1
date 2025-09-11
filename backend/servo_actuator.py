@@ -166,7 +166,14 @@ class ServoActuator:
                 result = self._send_cmd(cmd)
             # print(cmd.hex())
             return result
-
+    def set_hand_pos_with_vel(self,position:int,velocity:int):
+        """设置目标位置和速度（步）"""
+        with self.lock:
+            for i,value in position.items():
+                if value is None:
+                    print("[WARN] Motor {} has no position data, skipping...".format(i))
+                    return
+                self.set_pos_with_vel(value,velocity,i)
     def set_position(self, position: int, id_addr=None):
         """设置目标位置（步）"""
         with self.lock:
@@ -227,7 +234,7 @@ class ServoActuator:
             self.set_pos_with_vel(100,500, i)
         self.set_pos_with_vel(1700,500, 5)
         self.set_pos_with_vel(1300,500, 6)
-
+        self.set_pos_with_vel(217,500, 3)
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
     # actuator.start_thread()
@@ -241,6 +248,7 @@ if __name__ == "__main__":
 
         # actuator.set_pos_with_vel(0,500,1)
         actuator.reset_grasp()
+        # actuator.set_hand_pos_with_vel({1: 323, 2: 310, 3: 439, 4: 380, 5: 1700, 6: 1300},500)
         # x = 20
         # actuator.set_speed(x,1,1)
         # actuator.set_mode(2,1)
@@ -250,22 +258,22 @@ if __name__ == "__main__":
         # print(actuator._parse_status_frame(x))
         # print(actuator.positions)
         # actuator.send_message(0x31,0x24,0x40,1)
-        while True:
-            # actuator.clear_fault()
-            # actuator.set_pos_with_vel(0,500, 1)
-            # actuator.set_pos_with_vel(0,500, 2)
-            # actuator.set_pos_with_vel(0,500, 3)
-            # actuator.set_pos_with_vel(0,500, 4)
-            # actuator.set_position(1)
-            # for i in range(1,5):
-            #     actuator.set_position(100,i)
-            # time.sleep(8)
-            # actuator.clear_fault()
-            # actuator.set_pos_with_vel(1800,500, 1)
-            # actuator.set_pos_with_vel(1800,500, 2)
-            # actuator.set_pos_with_vel(1800,500, 3)
-            time.sleep(8)
-            print(actuator.positions)
+        # while True:
+        #     # actuator.clear_fault()
+        #     # actuator.set_pos_with_vel(0,500, 1)
+        #     # actuator.set_pos_with_vel(0,500, 2)
+        #     # actuator.set_pos_with_vel(0,500, 3)
+        #     # actuator.set_pos_with_vel(0,500, 4)
+        #     # actuator.set_position(1)
+        #     # for i in range(1,5):
+        #     #     actuator.set_position(100,i)
+        #     # time.sleep(8)
+        #     # actuator.clear_fault()
+        #     # actuator.set_pos_with_vel(1800,500, 1)
+        #     # actuator.set_pos_with_vel(1800,500, 2)
+        #     # actuator.set_pos_with_vel(1800,500, 3)
+        #     time.sleep(8)
+        #     print(actuator.positions)
 
     except KeyboardInterrupt:
         actuator.stop_thread()

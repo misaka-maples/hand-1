@@ -5,9 +5,10 @@
     import { OrbitControls } from '/static/js/OrbitControls.js';
     import { createFingerGUI } from './static/js/fingergui.js';
 
+
     // --- 场景 ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0f1e); // 深蓝背景
+    scene.background = new THREE.Color(0x0a1a3f); // 深蓝科技背景
 
     // 相机
     const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -25,28 +26,23 @@
     controls.target.set(0, 0.1, 0);
     controls.update();
 
-    // 灯光系统
-    const keyLight = new THREE.DirectionalLight(0x55aaff, 1.2); // 主光 蓝色
+    // 灯光
+    const keyLight = new THREE.DirectionalLight(0x55aaff, 1.2);
     keyLight.position.set(2, 2, 2);
-    keyLight.castShadow = true;
     scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xff55aa, 0.8); // 补光 粉色
+    const fillLight = new THREE.DirectionalLight(0x4488ff, 0.8);
     fillLight.position.set(-2, 1, -1);
     scene.add(fillLight);
 
-    const backLight = new THREE.DirectionalLight(0xffffff, 0.6); // 背光 白色
-    backLight.position.set(0, 2, -2);
-    scene.add(backLight);
-
-    scene.add(new THREE.AmbientLight(0x202040, 0.6)); // 柔和环境光
+    scene.add(new THREE.AmbientLight(0x101040, 0.6));
 
     // 地面发光圆盘
     const floorGeometry = new THREE.CircleGeometry(0.5, 64);
     const floorMaterial = new THREE.MeshPhongMaterial({
         color: 0x111133,
-        emissive: 0x2266ff,
-        emissiveIntensity: 0.4,
+        emissive: 0x2244ff,
+        emissiveIntensity: 0.5,
         transparent: true,
         opacity: 0.85,
         side: THREE.DoubleSide
@@ -55,7 +51,6 @@
     floor.rotation.x = -Math.PI / 2;
     floor.position.y = -0.02;
     scene.add(floor);
-
     // --- 粒子特效 ---
     const particles = new THREE.Group();
     const particleGeometry = new THREE.SphereGeometry(0.003, 8, 8);
@@ -76,35 +71,30 @@
     const loader = new GLTFLoader();
     loader.load('/static/LEFTHAND.glb', gltf => {
         const model = gltf.scene;
-
         model.traverse(obj => {
             if (obj.isMesh) {
-                obj.castShadow = true;
-                obj.receiveShadow = true;
-
-                // 替换成透明线框材质
                 obj.material = new THREE.MeshPhongMaterial({
-                    color: 0xffffff,       // 线框颜色：白色
-                    emissive: 0xffffff,    // 自发光：白色
-                    emissiveIntensity: 0.5,// 发光强度
-                    wireframe: true,       // 线框模式
+                    color: 0x111111,
+                    emissive: 0x00ffff,
+                    emissiveIntensity: 0.3,
                     transparent: true,
-                    opacity: 0.6,          // 半透明
-                    shininess: 200
+                    opacity: 0.3
                 });
-                obj.castShadow = true;
-                obj.receiveShadow = true;
-                // obj.geometry = obj.geometry.toNonIndexed(); // 保证线框均匀
-                // obj.material = wireMaterial;
-            }
-            
 
+                const edges = new THREE.EdgesGeometry(obj.geometry, 15);
+                const line = new THREE.LineSegments(
+                    edges,
+                    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8 })
+                );
+                obj.add(line);
+            }
             if (obj.type === "Bone") {
                 obj.userData.initQuat = obj.quaternion.clone();
                 const axesHelper = new THREE.AxesHelper(0.015);
                 obj.add(axesHelper);
             }
         });
+
 
         scene.add(model);
 

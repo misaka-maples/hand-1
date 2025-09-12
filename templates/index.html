@@ -53,10 +53,17 @@
     <h2 class="mb-4 text-center">灵巧手控制界面</h2>
 
     <!-- 摄像头视频 -->
-    <div class="mb-4">
-        <img id="video-feed" class="video-box" src="/video_feed" alt="摄像头画面">
+    <div class="row mb-4">
+        <!-- 左侧：摄像头视频 -->
+        <div class="col-md-6">
+            <img id="video-feed" class="video-box" src="/video_feed" alt="摄像头画面">
+        </div>
+    
+        <!-- 右侧：Three.js 画布 -->
+        <div class="col-md-6" id="three-container-wrapper">
+            <!-- Three.js 画布会动态插入 -->
+        </div>
     </div>
-
     <div class="row">
         <!-- 滑块控制区 -->
         <div class="col-md-6">
@@ -125,5 +132,5 @@
 </body>
 <script src="static/hand.js"></script>
 <script src="static/camera.js"></script>
-
+<script type="module" src="static/3d_model.js"></script>
 </html>

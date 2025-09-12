@@ -1,61 +1,148 @@
+<link rel="icon" href="/static/output.png" type="image/png">
 <script type="module">
     import * as THREE from '/static/js/three.module.js';
     import { GLTFLoader } from '/static/js/GLTFLoader.js';
     import { OrbitControls } from '/static/js/OrbitControls.js';
     import { createFingerGUI } from './static/js/fingergui.js';
 
-    // --- 场景/相机/渲染器/光源 ---
+    // --- 场景 ---
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xeeeeee);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0.5, 0.1, 0);
-    // camera.lookAt(100, 0, 0);
+    scene.background = new THREE.Color(0x0a0f1e); // 深蓝背景
+
+    // 相机
+    const camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0.6, 0.3, 0.6);
+
+    // 渲染器
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
+
+    // 控制器
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(-0.3, 0, 0);
+    controls.target.set(0, 0.1, 0);
     controls.update();
-    scene.add(new THREE.DirectionalLight(0xffffff, 1));
-    scene.add(new THREE.AmbientLight(0x404040, 1.5));
+
+    // 灯光系统
+    const keyLight = new THREE.DirectionalLight(0x55aaff, 1.2); // 主光 蓝色
+    keyLight.position.set(2, 2, 2);
+    keyLight.castShadow = true;
+    scene.add(keyLight);
+
+    const fillLight = new THREE.DirectionalLight(0xff55aa, 0.8); // 补光 粉色
+    fillLight.position.set(-2, 1, -1);
+    scene.add(fillLight);
+
+    const backLight = new THREE.DirectionalLight(0xffffff, 0.6); // 背光 白色
+    backLight.position.set(0, 2, -2);
+    scene.add(backLight);
+
+    scene.add(new THREE.AmbientLight(0x202040, 0.6)); // 柔和环境光
+
+    // 地面发光圆盘
+    const floorGeometry = new THREE.CircleGeometry(0.5, 64);
+    const floorMaterial = new THREE.MeshPhongMaterial({
+        color: 0x111133,
+        emissive: 0x2266ff,
+        emissiveIntensity: 0.4,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide
+    });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.02;
+    scene.add(floor);
+
+    // --- 粒子特效 ---
+    const particles = new THREE.Group();
+    const particleGeometry = new THREE.SphereGeometry(0.003, 8, 8);
+    const particleMaterial = new THREE.MeshBasicMaterial({ color: 0x44aaff });
+
+    for (let i = 0; i < 200; i++) {
+        const p = new THREE.Mesh(particleGeometry, particleMaterial);
+        p.position.set(
+            (Math.random() - 0.5) * 2,
+            Math.random() * 1.5,
+            (Math.random() - 0.5) * 2
+        );
+        particles.add(p);
+    }
+    scene.add(particles);
 
     // --- 加载 GLB ---
     const loader = new GLTFLoader();
-    loader.load('/static/left_robot.glb', gltf => {
+    loader.load('/static/LEFTHAND.glb', gltf => {
         const model = gltf.scene;
+
+        model.traverse(obj => {
+            if (obj.isMesh) {
+                obj.castShadow = true;
+                obj.receiveShadow = true;
+
+                // 替换成透明线框材质
+                obj.material = new THREE.MeshPhongMaterial({
+                    color: 0xffffff,       // 线框颜色：白色
+                    emissive: 0xffffff,    // 自发光：白色
+                    emissiveIntensity: 0.5,// 发光强度
+                    wireframe: true,       // 线框模式
+                    transparent: true,
+                    opacity: 0.6,          // 半透明
+                    shininess: 200
+                });
+                obj.castShadow = true;
+                obj.receiveShadow = true;
+                // obj.geometry = obj.geometry.toNonIndexed(); // 保证线框均匀
+                // obj.material = wireMaterial;
+            }
+            
+
+            if (obj.type === "Bone") {
+                obj.userData.initQuat = obj.quaternion.clone();
+                const axesHelper = new THREE.AxesHelper(0.015);
+                obj.add(axesHelper);
+            }
+        });
+
         scene.add(model);
 
-        // 建立骨骼映射
+        // 骨骼映射
         const bones = {};
-        model.traverse(obj => {
-            if (obj.type === "Bone") bones[obj.name] = obj;
-        });
-        // console.log(bones);
-        // 手指映射
+        model.traverse(obj => { if (obj.type === "Bone") bones[obj.name] = obj; });
+
         const fingerMap = {
-            index: ["骨骼001", "骨骼002", "骨骼003"],
-            middle: ["骨骼001_1", "骨骼002_1", "骨骼003_1"],
-            ring: ["骨骼001_2", "骨骼002_2", "骨骼003_2"],
-            pinky: ["骨骼001_3", "骨骼002_3", "骨骼003_3"],
-            thumb: ["骨骼001_4", "骨骼002_4", "骨骼003_4"]
+            thumb: ["thumb01", "thumb02", "thumb03", "thumb04"],
+            index: ["index01", "index02", "index03"],
+            middle: ["middle01", "middle02", "middle03"],
+            ring: ["ring01", "ring02", "ring03"],
+            pinky: ["pinky01", "pinky02", "pinky03"]
         };
 
-        // 创建 GUI
         createFingerGUI(bones, fingerMap);
 
-        // 可视化骨骼
-        const helper = new THREE.SkeletonHelper(model);
-        scene.add(helper);
+        // 骨骼可视化
+        // const helper = new THREE.SkeletonHelper(model);
+        // helper.material.linewidth = 2;
+        // helper.material.color.set(0xff00ff);
+        // scene.add(helper);
     });
 
-    // --- 动画循环 ---
+    // 动画循环
     function animate() {
         requestAnimationFrame(animate);
+
+        // 粒子缓慢上下浮动
+        particles.children.forEach((p, i) => {
+            p.position.y += Math.sin(Date.now() * 0.001 + i) * 0.0005;
+        });
+
         renderer.render(scene, camera);
     }
     animate();
 
-    // --- 窗口自适应 ---
+    // 窗口自适应
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();

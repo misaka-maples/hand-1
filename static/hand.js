@@ -10,7 +10,7 @@ for (let i = 1; i <= 6; i++) {
     });
 }
 const btn = document.getElementById("graspBtn");
-
+let isGrasping = false; // 本地状态
 function sendSliderValue(dof, value) {
     fetch(`/set_dof?dof=${dof}&value=${value}`, { method: 'POST' })
         .then(res => res.text())
@@ -24,6 +24,7 @@ function sendCommand(cmd) {
         .then(data => console.log(`Command: ${cmd}`, data))
         .catch(err => console.error(err));
     btn.textContent = "开始抓取";
+    isGrasping = false
     btn.classList.remove("btn-danger");
     btn.classList.add("btn-success");
 }
@@ -63,7 +64,7 @@ function updateStatusTable() {
 // 每 100 毫秒刷新一次状态
 setInterval(updateStatusTable, 100);
 
-let isGrasping = false; // 本地状态
+
 
 // 封装按钮更新函数
 function updateButton() {

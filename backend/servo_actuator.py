@@ -237,7 +237,7 @@ class ServoActuator:
         self.set_pos_with_vel(217,500, 3)
 if __name__ == "__main__":
     actuator = ServoActuator("/dev/ttyUSB0", 921600)
-    # actuator.start_thread()
+    actuator.start_thread()
     try:
         
         actuator.clear_fault()
@@ -247,7 +247,7 @@ if __name__ == "__main__":
         # actuator.set_pos_with_vel(0,500, 4)
 
         # actuator.set_pos_with_vel(0,500,1)
-        actuator.reset_grasp()
+        actuator.reset_grasp()#{1: 477, 2: 458, 3: 550, 4: 471, 5: 1698, 6: 1299}
         # actuator.set_hand_pos_with_vel({1: 323, 2: 310, 3: 439, 4: 380, 5: 1700, 6: 1300},500)
         # x = 20
         # actuator.set_speed(x,1,1)
@@ -258,7 +258,7 @@ if __name__ == "__main__":
         # print(actuator._parse_status_frame(x))
         # print(actuator.positions)
         # actuator.send_message(0x31,0x24,0x40,1)
-        # while True:
+        while True:
         #     # actuator.clear_fault()
         #     # actuator.set_pos_with_vel(0,500, 1)
         #     # actuator.set_pos_with_vel(0,500, 2)
@@ -273,7 +273,7 @@ if __name__ == "__main__":
         #     # actuator.set_pos_with_vel(1800,500, 2)
         #     # actuator.set_pos_with_vel(1800,500, 3)
         #     time.sleep(8)
-        #     print(actuator.positions)
+            print(actuator.positions)
 
     except KeyboardInterrupt:
         actuator.stop_thread()

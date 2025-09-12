@@ -661,7 +661,6 @@ if __name__ == "__main__":
     try:
         while True:
             # start = time.time()
-            
             # sensor.get_force(1)
             # sensor.get_force(3,tip=False)
             # sensor.get_force(5)

@@ -9,7 +9,8 @@ class SmartGrasper:
         self.sensors :SensorCommunication= sensors
         self.actuator :ServoActuator = actuator
         # 力阈值（不同物体可调节）
-        self.min_force = 3     # 检测到物体的最小力
+        self.min_force = 30     # 检测到物体的最小力
+        self.support_force = 10.0 
         self.max_force = 200    # 安全力，超过可能损坏物体
         self.max_pos = {1: 1200, 2: 1200, 3: 1200, 4: 1000}  # 可以根据实际调整
         self.min_pos = {1: 0, 2: 0, 3: 0, 4: 0}
@@ -71,48 +72,84 @@ class SmartGrasper:
         for fid in fingertip_ids:
             tip_val = self.safe_sum(sensor_values.get(fid, 0)['force'])
             if abs(thumb_val + tip_val) > self.min_force:
-                return True
+                return True, fid
 
         # 4. 条件2：任意指腹
         for fid in fingerpad_ids:
             pad_val = self.safe_sum(sensor_values.get(fid, 0)['force'])
             if abs(pad_val) > self.min_force:
-                return True
-        return False
+                return True, fid
+        return False,0
 
     def grasp(self):
+         # 其他手指的贴合力阈值
+
+        grasped = False
+        grasp_finger = None
+
         while self._running.is_set():
-            # 1. 获取所有传感器数据
-            all_forces = self.sensors.force_data  # {id: (fx, fy, fz), ...}
-            sensor_count = 5
+            finger_sensors = {
+                1: [5, 6],
+                2: [3, 4],
+                3: [1, 2],
+                4: [7],
+            }
+
+            all_forces = self.sensors.force_data
+            sensor_count = len(all_forces)
 
             with self.lock:
                 positions = dict(list(self.actuator.positions.items())[:4])
 
             finger_forces = {}
 
-            # 2. 遍历每个手指，计算合力模长
-            for fid in range(1, 5):
-                force_val = all_forces.get(fid, 0)['force']
-                total_force = self.safe_sum(force_val)
+            for fid, sids in finger_sensors.items():
+                total_force = sum(
+                    self.safe_sum(all_forces[sid]['force'])
+                    for sid in sids if sid in all_forces
+                )
                 finger_forces[fid] = total_force
                 print(f"finger {fid}: {total_force:.2f}")
 
-                # 3. 控制手指运动（小于最小力就继续闭合）
-                if total_force < self.min_force:
-                    new_pos = positions[fid] + self.step
-                    new_pos = min(new_pos, self.max_pos[fid])  # 限制最大位置
-                    print(f"Moving finger {fid} to {new_pos}")
-                    self.actuator.set_pos_with_vel(new_pos, 100, fid)
+            # ========= 阶段1：检测主手指抓取 =========
+            if not grasped:
+                for fid in finger_sensors:
+                    grasp, fid = self.check_grasp(all_forces, sensor_count)
+                    fid_ =  [key for key,value in finger_sensors.items() if fid in value]
+                    print(f"check_grasp: {grasp}, finger {fid_}")
+                    if grasp:
+                        print(f"finger {fid_} 已稳定抓取 ✅", finger_forces, self.actuator.positions)
+                        self.grasp_state = "已抓取"
+                        grasped = True
+                        grasp_finger = fid_
+                        break
+
+                if not grasped:
+                    # 没有手指抓到，就继续闭合所有手指
+                    for fid in finger_sensors:
+                        new_pos = positions[fid] + self.step
+                        new_pos = min(new_pos, self.max_pos[fid])
+                        print(f"Moving finger {fid} to {new_pos}")
+                        self.actuator.set_pos_with_vel(new_pos, 100, fid)
                     self.grasp_state = "抓取中"
 
-            # 4. 判断是否抓稳（拇指+任意指尖，或任意指腹）
-            if self.check_grasp(all_forces, sensor_count):
-                print("已稳定抓取 ✅", finger_forces, self.actuator.positions)
-                self.grasp_state = "已抓取"
-                break
+            # ========= 阶段2：其他手指贴合 =========
+            else:
+                for fid in finger_sensors:
+                    if fid == grasp_finger:  # 主手指不再动
+                        continue
+                    # print(fid, grasp_finger)
+                    total_force = finger_forces[fid]
+                    if total_force < self.support_force:  # 继续闭合
+                        print(f"finger {fid} 力量不足，继续闭合 (force={total_force:.2f})")
+                        new_pos = positions[fid] + self.step
+                        new_pos = min(new_pos, self.max_pos[fid])
+                        print(f"Moving finger {fid} (support) to {new_pos}")
+                        self.actuator.set_pos_with_vel(new_pos, 100, fid)
+                    else:
+                        print(f"finger {fid} 已贴合物体 ✅ (force={total_force:.2f})")
 
-            # 5. 循环间隔
+            # 循环间隔
             for _ in range(5):
                 if not self._running.is_set():
                     break

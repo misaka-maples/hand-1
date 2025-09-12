@@ -11,8 +11,8 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 
 # 初始化硬件
-actuator = ServoActuator("/dev/ttyUSB0", 921600)
-touch_sensor = SensorCommunication("/dev/ttyACM0", 460800)
+actuator = ServoActuator("/dev/ttyUSB1", 921600)
+touch_sensor = SensorCommunication("/dev/ttyACM1", 460800)
 grasping = SmartGrasper(touch_sensor, actuator)
 
 app = Flask(__name__)

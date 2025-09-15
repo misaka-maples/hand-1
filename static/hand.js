@@ -28,6 +28,73 @@ function sendCommand(cmd) {
     btn.classList.remove("btn-danger");
     btn.classList.add("btn-success");
 }
+// 手指状态维护
+const fingerState = {
+    thumb: { bend: 0, swing: 0 },
+    index: { bend: 0 },
+    middle: { bend: 0 },
+    ring: { bend: 0 },
+    pinky: { bend: 0 }
+};
+
+function updateHandPose(statusData) {
+    // DOF 映射
+    const mapping = {
+        DOF1: { finger: "ring", type: "bend" },
+        DOF2: { finger: "middle", type: "bend" },
+        DOF3: { finger: "index", type: "bend" },
+        DOF4: { finger: "thumb", type: "bend" },
+        DOF5: { finger: "thumb", type: "swing" },
+    };
+
+    // bend 比例
+    const thumbBendRatio = [0.5, 0.35, 0.25, 0.15];
+    const otherBendRatio = [0.5, 0.8, 0.3];
+
+    // 摆动轴
+    const thumbSwingAxis = new THREE.Vector3(0, 0, 1);
+
+    // 先更新 fingerState
+    for (let dof in mapping) {
+        const status = statusData[dof];
+        if (!status) continue;
+
+        const map = mapping[dof];
+        const angle = status.current_position * 0.002;
+
+        if (map.type === "bend") {
+            fingerState[map.finger].bend = angle;
+        } else if (map.type === "swing") {
+            fingerState[map.finger].swing = angle;
+        }
+    }
+
+    // 遍历每个手指
+    Object.keys(fingerMap).forEach(fingerName => {
+        const joints = fingerMap[fingerName].map(name => bones[name]).filter(b => b);
+        if (!joints.length) return;
+
+        const bendAngles = (fingerName === "thumb") ? thumbBendRatio : otherBendRatio;
+
+        joints.forEach((bone, i) => {
+            // 从初始姿态开始
+            bone.quaternion.copy(bone.userData.initQuat);
+
+            // bend
+            const bendQuat = new THREE.Quaternion();
+            const bendAngle = fingerState[fingerName].bend * (bendAngles[i] || bendAngles[bendAngles.length - 1]);
+            bendQuat.setFromAxisAngle(fingerAxisMap[fingerName], bendAngle);
+            bone.quaternion.multiply(bendQuat);
+
+            // swing，只影响大拇指最后一节
+            if (fingerName === "thumb" && i === joints.length - 1) {
+                const swingQuat = new THREE.Quaternion();
+                swingQuat.setFromAxisAngle(thumbSwingAxis, fingerState.thumb.swing * 0.5);
+                bone.quaternion.multiply(swingQuat);
+            }
+        });
+    });
+}
 
 function updateStatusTable() {
     fetch('/status')
@@ -57,12 +124,13 @@ function updateStatusTable() {
                 }
             }
             document.getElementById("status-table").innerHTML = tableHTML;
+            updateHandPose(data);
         })
         .catch(err => console.error("获取状态失败", err));
 }
 
 // 每 100 毫秒刷新一次状态
-setInterval(updateStatusTable, 100);
+setInterval(updateStatusTable, 1000);
 
 
 

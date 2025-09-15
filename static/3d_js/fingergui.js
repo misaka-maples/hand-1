@@ -51,12 +51,12 @@ export function createFingerGUI(bones, fingerMap) {
             joints.forEach((bone, i) => {
                 // 从初始姿态开始
                 bone.quaternion.copy(bone.userData.initQuat);
-
+                
                 // bend
                 const bendQuat = new THREE.Quaternion();
                 bendQuat.setFromAxisAngle(axis, fingerParams[fingerName] * (bendAngles[i] || bendAngles[bendAngles.length - 1]));
                 bone.quaternion.multiply(bendQuat);
-
+                console.log(`Finger: ${fingerName}, Joint: ${bone.name}, BendQuat:`, bendQuat, 'Bone quaternion after bend:', bone.quaternion);
                 // swing，只影响大拇指最后一节
                 if (fingerName === "thumb" && i === joints.length - 1) {
                     const swingQuat = new THREE.Quaternion();

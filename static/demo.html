@@ -1,0 +1,65 @@
+< !DOCTYPE html >
+    <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+                <title>Thumb Demo</title>
+                <style>
+                    body {margin: 0; }
+                    canvas {display: block; }
+                </style>
+        </head>
+        <body>
+            <div id="three-container"></div>
+            <script type="module">
+                import * as THREE from '/static/3d_js/three.module.js';
+
+
+                // 模拟 bones 和 fingerMap
+                const bones = { };
+                const fingerMap = {
+                    thumb: ['thumb01', 'thumb02', 'thumb03', 'thumb04']
+};
+
+// 创建简单骨骼对象
+fingerMap.thumb.forEach(name => {
+    const bone = new THREE.Bone();
+                bone.name = name;
+                bone.userData.initQuat = new THREE.Quaternion(); // 初始四元数
+                bones[name] = bone;
+});
+
+                // thumb bend 轴和 swing 轴
+                const fingerAxisMap = {thumb: new THREE.Vector3(1, 0, 0) }; // X 轴
+                const thumbSwingAxis = new THREE.Vector3(0, 0, 1);             // Z 轴
+
+                // Bend 比例
+                const thumbBendRatio = [0.5, 0.35, 0.25, 0.15];
+
+                // 模拟更新函数
+                function updateThumb(bendValue, swingValue) {
+    const joints = fingerMap.thumb.map(name => bones[name]).filter(b => b);
+    joints.forEach((bone, i) => {
+                    // reset
+                    bone.quaternion.copy(bone.userData.initQuat);
+
+                // bend
+                const bendQuat = new THREE.Quaternion();
+                bendQuat.setFromAxisAngle(fingerAxisMap.thumb, bendValue * (thumbBendRatio[i] || thumbBendRatio[thumbBendRatio.length-1]));
+                bone.quaternion.multiply(bendQuat);
+
+                // swing 只作用最后一节
+                if (i === joints.length - 1) {
+            const swingQuat = new THREE.Quaternion();
+                swingQuat.setFromAxisAngle(thumbSwingAxis, swingValue);
+                bone.quaternion.multiply(swingQuat);
+        }
+
+                console.log(`Bone: ${bone.name}, quaternion:`, bone.quaternion);
+    });
+}
+
+                // 测试
+                updateThumb(1.0, 0.5); // bend=1.0, swing=0.5
+            </script>
+        </body>
+    </html>

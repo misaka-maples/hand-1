@@ -11,8 +11,8 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.WARNING)
 
 # 初始化硬件
-actuator = ServoActuator("/dev/ttyUSB1", 921600)
-touch_sensor = SensorCommunication("/dev/ttyACM1", 460800)
+actuator = ServoActuator("/dev/ttyUSB0", 921600)
+touch_sensor = SensorCommunication("/dev/ttyACM0", 460800)
 grasping = SmartGrasper(touch_sensor, actuator)
 
 app = Flask(__name__)
@@ -25,10 +25,10 @@ def index():
     """主页面：视频流 + 状态表 + 力传感器 + 控制按钮"""
     return render_template("index.html")
 
-@app.route("/control")
-def control():
-    """子页面：自由度控制"""
-    return render_template("control.html")
+# @app.route("/control")
+# def control():
+#     """子页面：自由度控制"""
+#     return render_template("control.html")
 
 @app.route("/grasp_status")
 def grasp_status():
